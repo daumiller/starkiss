@@ -167,11 +167,11 @@ func (md *MetadataCommon) FieldsWrite(fields map[string]any) (err error) {
   md.ReleaseMonth     = fields["release_month"    ].(uint64)
   md.ReleaseDay       = fields["release_day"      ].(uint64)
   md.Index            = fields["index"            ].(uint64)
-  has_poster          = has_poster
+  md.HasPoster        = has_poster
   md.Location         = fields["location"         ].(string)
   md.Size             = fields["size"             ].(uint64)
   md.Duration         = fields["duration"         ].(uint64)
-  streams_string      = streams_string
+  md.Streams          = streams
 
   return nil
 }

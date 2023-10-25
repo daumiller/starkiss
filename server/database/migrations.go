@@ -39,6 +39,12 @@ func MigrateTo(level_target uint32) (err error) {
   level_current := MigrationGetCurrent()
   if level_current == level_target { return nil }
 
+  // if db doesn't exist, create it before attempting backups
+  if (fileExists(Location) == false) {
+    db, err := Open()
+    if err == nil { Close(db) }
+  }
+
   err = BackupCreate()
   if err != nil { return fmt.Errorf("Migration backup failed: %s", err.Error()) }
 

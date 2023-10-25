@@ -8,15 +8,21 @@ import (
   _ "modernc.org/sqlite"
 )
 
-var Location = "./starkiss.db"
-var ErrNotFound         = fmt.Errorf("not found")
-var ErrQueryFailed      = fmt.Errorf("database query failed")
+var Location       = "./starkiss.db"
+var ErrNotFound    = fmt.Errorf("not found")
+var ErrQueryFailed = fmt.Errorf("database query failed")
 
 // ============================================================================
 
-// Open the database.
+// Open the database (creating new db, if necessary).
 func Open() (db *sql.DB, err error) {
   db, err = sql.Open("sqlite", Location)
+  if err == nil {
+    // sqlite won't complain about an invalid file until you actually attempt to write to it...
+    _, err = db.Exec(`CREATE TABLE is_connection_valid (id INTEGER PRIMARY KEY, name TEXT);`)
+    if err != nil { return nil, err }
+    _, err = db.Exec(`DROP TABLE is_connection_valid;`)
+  }
   return db, nil
 }
 
