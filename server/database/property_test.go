@@ -5,8 +5,6 @@ import (
   "testing"
 )
 
-// Read, Upser, Delete, List
-
 func TestBasicProperties(test *testing.T) {
   Location = "./test.database"
   _ = os.Remove(Location)

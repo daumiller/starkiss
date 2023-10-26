@@ -13,6 +13,7 @@ var ErrValidationFailed  = fmt.Errorf("validation failed")
 type Table interface {
   TableName() string                                              // name of the table
   GetId() string                                                  // get the id
+  SetId(id string)                                                // set the id
   CreateFrom(fields map[string]any) (instance Table, err error)   // create from field:values
 
   FieldsRead() (fields map[string]any, err error)                 // read field:values from struct
@@ -35,7 +36,10 @@ func TableCreate(db *sql.DB, table Table) (err error) {
   if err != nil { return err }
 
   id, id_present := fields["id"]
-  if (id_present == false) || (id == "") { fields["id"] = uuid.NewString() }
+  if (id_present == false) || (id == "") {
+    fields["id"] = uuid.NewString()
+    table.SetId(fields["id"].(string))
+  }
 
   columns := []string {}
   params  := []string {}
@@ -103,18 +107,22 @@ func TableRead(db *sql.DB, table Table, id string) (err error) {
     columns = append(columns, column)
     values  = append(values, value)
   }
-  values = append(values, table.GetId())
+  addresses := make([]any, len(values))
+  for index := range values { addresses[index] = &(values[index]) }
 
   query_string := fmt.Sprintf(`SELECT %s FROM %s WHERE id = ?;`, strings.Join(columns, ", "), table.TableName())
-  result := db.QueryRow(query_string, values...)
-  err = result.Scan(values...)
+  result := db.QueryRow(query_string, id)
+  err = result.Scan(addresses...)
   if err == sql.ErrNoRows { return ErrNotFound }
   if err != nil { return err }
 
+  for index := range values { fields[columns[index]] = values[index] }
   return table.FieldsWrite(fields)
 }
 
 func TableWhere(db *sql.DB, table Table, where_string string, where_values ...any) (results []Table, err error) {
+  results = make([]Table, 0)
+
   fields, err := table.FieldsRead()
   if err != nil { return results, err }
 
@@ -124,7 +132,8 @@ func TableWhere(db *sql.DB, table Table, where_string string, where_values ...an
     columns = append(columns, column)
     values  = append(values, value)
   }
-  values = append(values, where_values...)
+  addresses := make([]any, len(values))
+  for index := range values { addresses[index] = &(values[index]) }
 
   if where_string != "" { where_string = fmt.Sprintf(`WHERE %s`, where_string) }
   query_string := fmt.Sprintf(`SELECT %s FROM %s %s ;`, strings.Join(columns, ", "), table.TableName(), where_string)
@@ -133,8 +142,9 @@ func TableWhere(db *sql.DB, table Table, where_string string, where_values ...an
   defer rows.Close()
 
   for rows.Next() {
-    err = rows.Scan(values...)
+    err = rows.Scan(addresses...)
     if err != nil { return results, err }
+    for index := range values { fields[columns[index]] = values[index] }
     this_result, err := table.CreateFrom(fields)
     if err != nil { return results, err }
     results = append(results, this_result)

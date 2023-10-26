@@ -47,9 +47,9 @@ type MetadataCommon struct {
   ReleaseYear       uint64       `json:"release_year"`
   ReleaseMonth      uint64       `json:"release_month"`
   ReleaseDay        uint64       `json:"release_day"`
-  Index             uint64       `json:"index"`     // Season/Episode/Track number
+  SiblingIndex      uint64       `json:"sibling_index"` // Season/Episode/Track number
   HasPoster         bool         `json:"has_poster"`
-  Location          string       `json:"-"`          // Location of the file, not included in JSON
+  Location          string       `json:"-"`             // Location of the file, not included in JSON
   Size              uint64       `json:"size"`
   Duration          uint64       `json:"duration"`
   Streams           []Stream     `json:"streams"`
@@ -76,19 +76,17 @@ func MetadataWhere(db *sql.DB, where_string string, where_args ...any) (md_list 
   tables, err := TableWhere(db, &Metadata{}, where_string, where_args...)
   if err != nil { return nil, err }
 
-  for _, table := range tables {
-    md_list = append(md_list, *(table.(*Metadata)))
-  }
+  md_list = make([]Metadata, len(tables))
+  for index, table := range tables { md_list[index] = *(table.(*Metadata)) }
   return md_list, nil
 }
-func ProvisionalWhere(db *sql.DB, where_string string, where_args ...any) (md_list []Provisional, err error) {
+func ProvisionalWhere(db *sql.DB, where_string string, where_args ...any) (pv_list []Provisional, err error) {
   tables, err := TableWhere(db, &Provisional{}, where_string, where_args...)
   if err != nil { return nil, err }
 
-  for _, table := range tables {
-    md_list = append(md_list, *(table.(*Provisional)))
-  }
-  return md_list, nil
+  pv_list = make([]Provisional, len(tables))
+  for index, table := range tables { pv_list[index] = *(table.(*Provisional)) }
+  return pv_list, nil
 }
 
 // ============================================================================
@@ -117,8 +115,12 @@ func (md *Provisional) CreateFrom(fields map[string]any) (instance Table, err er
 func (md *MetadataCommon) GetId() string {
   return md.Id
 }
+func (md *MetadataCommon) SetId(id string) {
+  md.Id = id
+}
 
 func (md *MetadataCommon) FieldsRead() (fields map[string]any, err error) {
+  fields = make(map[string]any)
   has_poster := uint64(0) ; if md.HasPoster { has_poster = 1 }
   streams_bytes, err := json.Marshal(md.Streams) ; if err != nil { return nil, err } ; streams_string := string(streams_bytes)
 
@@ -137,7 +139,7 @@ func (md *MetadataCommon) FieldsRead() (fields map[string]any, err error) {
   fields["release_year"     ] = md.ReleaseYear
   fields["release_month"    ] = md.ReleaseMonth
   fields["release_day"      ] = md.ReleaseDay
-  fields["index"            ] = md.Index
+  fields["sibling_index"    ] = md.SiblingIndex
   fields["has_poster"       ] = has_poster
   fields["location"         ] = md.Location
   fields["size"             ] = md.Size
@@ -166,7 +168,7 @@ func (md *MetadataCommon) FieldsWrite(fields map[string]any) (err error) {
   md.ReleaseYear      = fields["release_year"     ].(uint64)
   md.ReleaseMonth     = fields["release_month"    ].(uint64)
   md.ReleaseDay       = fields["release_day"      ].(uint64)
-  md.Index            = fields["index"            ].(uint64)
+  md.SiblingIndex     = fields["sibling_index"    ].(uint64)
   md.HasPoster        = has_poster
   md.Location         = fields["location"         ].(string)
   md.Size             = fields["size"             ].(uint64)
@@ -177,6 +179,7 @@ func (md *MetadataCommon) FieldsWrite(fields map[string]any) (err error) {
 }
 
 func (md_a *MetadataCommon) FieldsDifference(other Table) (diff map[string]any, err error) {
+  diff = make(map[string]any)
   md_b, b_is_md := other.(*Metadata)
   if b_is_md == false { return diff, ErrInvalidType }
 
@@ -199,7 +202,7 @@ func (md_a *MetadataCommon) FieldsDifference(other Table) (diff map[string]any, 
   if md_a.ReleaseYear      != md_b.ReleaseYear      { diff["release_year"     ] = md_b.ReleaseYear          }
   if md_a.ReleaseMonth     != md_b.ReleaseMonth     { diff["release_month"    ] = md_b.ReleaseMonth         }
   if md_a.ReleaseDay       != md_b.ReleaseDay       { diff["release_day"      ] = md_b.ReleaseDay           }
-  if md_a.Index            != md_b.Index            { diff["index"            ] = md_b.Index                }
+  if md_a.SiblingIndex     != md_b.SiblingIndex     { diff["sibling_index"    ] = md_b.SiblingIndex         }
   if md_a.HasPoster        != md_b.HasPoster        { diff["has_poster"       ] = b_has_poster              }
   if md_a.Location         != md_b.Location         { diff["location"         ] = md_b.Location             }
   if md_a.Size             != md_b.Size             { diff["size"             ] = md_b.Size                 }

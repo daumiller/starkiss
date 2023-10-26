@@ -13,6 +13,7 @@ type Unprocessed struct {
   NeedsMetadata      bool        `json:"needs_metadata"`
   SourceLocation     string      `json:"source_location"`
   SourceStreams      []Stream    `json:"source_streams"`
+  SourceContainer    string      `json:"source_container"`
   TranscodedLocation string      `json:"transcoded_location"`
   TranscodedStreams  []Stream    `json:"transcoded_streams"` // for this list only, index is index from the source stream
   MatchData          string      `json:"match_data"`         // JSON match data
@@ -50,9 +51,8 @@ func UnprocessedList(db *sql.DB, needs_stream_map bool, needs_transcoding bool, 
   tables, err := TableWhere(db, &Unprocessed{}, where_string, where_params...)
   if err != nil { return nil, err }
 
-  for _, table := range tables {
-    unp_list = append(unp_list, *(table.(*Unprocessed)))
-  }
+  unp_list = make([]Unprocessed, len(tables))
+  for index, table := range tables { unp_list[index] = *(table.(*Unprocessed)) }
   return unp_list, nil
 }
 
@@ -61,6 +61,7 @@ func UnprocessedList(db *sql.DB, needs_stream_map bool, needs_transcoding bool, 
 
 func (unp *Unprocessed) TableName() string { return "unprocessed" }
 func (unp *Unprocessed) GetId() string { return unp.Id }
+func (unp *Unprocessed) SetId(id string) { unp.Id = id }
 
 func (unp *Unprocessed) CreateFrom(fields map[string]any) (instance Table, err error) {
   new_instance := Unprocessed {}
@@ -70,6 +71,7 @@ func (unp *Unprocessed) CreateFrom(fields map[string]any) (instance Table, err e
 }
 
 func (unp *Unprocessed) FieldsRead() (fields map[string]any, err error) {
+  fields = make(map[string]any)
   needs_stream_map  := uint64(0) ; if (unp.NeedsStreamMap   == true) { needs_stream_map  = 1 }
   needs_transcoding := uint64(0) ; if (unp.NeedsTranscoding == true) { needs_transcoding = 1 }
   needs_metadata    := uint64(0) ; if (unp.NeedsMetadata    == true) { needs_metadata    = 1 }
@@ -82,6 +84,7 @@ func (unp *Unprocessed) FieldsRead() (fields map[string]any, err error) {
   fields["needs_metadata"]      = needs_metadata
   fields["source_location"]     = unp.SourceLocation
   fields["source_streams"]      = source_streams
+  fields["source_container"]    = unp.SourceContainer
   fields["transcoded_location"] = unp.TranscodedLocation
   fields["transcoded_streams"]  = transcoded_streams
   fields["match_data"]          = unp.MatchData
@@ -104,6 +107,7 @@ func (unp *Unprocessed) FieldsWrite(fields map[string]any) (err error) {
   unp.NeedsMetadata       = needs_metadata
   unp.SourceLocation      = fields["source_location"].(string)
   unp.SourceStreams       = source_streams
+  unp.SourceContainer     = fields["source_container"].(string)
   unp.TranscodedLocation  = fields["transcoded_location"].(string)
   unp.TranscodedStreams   = transcoded_streams
   unp.MatchData           = fields["match_data"].(string)
@@ -114,6 +118,7 @@ func (unp *Unprocessed) FieldsWrite(fields map[string]any) (err error) {
 }
 
 func (unp_a *Unprocessed) FieldsDifference(other Table) (diff map[string]any, err error) {
+  diff = make(map[string]any)
   unp_b, b_is_unp := other.(*Unprocessed)
   if b_is_unp == false { return diff, ErrInvalidType }
 
@@ -125,16 +130,17 @@ func (unp_a *Unprocessed) FieldsDifference(other Table) (diff map[string]any, er
   b_source_bytes,     err := json.Marshal(unp_b.SourceStreams)     ; if err != nil { return diff, err } ; b_source_streams     := string(b_source_bytes)
   b_transcoded_bytes, err := json.Marshal(unp_b.TranscodedStreams) ; if err != nil { return diff, err } ; b_transcoded_streams := string(b_transcoded_bytes)
 
-  if unp_b.Id               != unp_a.Id               { diff["id"]                 = unp_b.Id             }
-  if unp_b.NeedsStreamMap   != unp_a.NeedsStreamMap   { diff["needs_stream_map"]   = b_needs_stream_map   }
-  if unp_b.NeedsTranscoding != unp_a.NeedsTranscoding { diff["needs_transcoding"]  = b_needs_transcoding  }
-  if unp_b.NeedsMetadata    != unp_a.NeedsMetadata    { diff["needs_metadata"]     = b_needs_metadata     }
-  if unp_b.SourceLocation   != unp_a.SourceLocation   { diff["source_location"]    = unp_b.SourceLocation }
-  if b_source_streams       != a_source_streams       { diff["source_streams"]     = b_source_streams     }
-  if b_transcoded_streams   != a_transcoded_streams   { diff["transcoded_streams"] = b_transcoded_streams }
-  if unp_b.MatchData        != unp_a.MatchData        { diff["match_data"]         = unp_b.MatchData      }
-  if unp_b.ProvisionalId    != unp_a.ProvisionalId    { diff["provisional_id"]     = unp_b.ProvisionalId  }
-  if unp_b.CreatedAt        != unp_a.CreatedAt        { diff["created_at"]         = unp_b.CreatedAt      }
+  if unp_b.Id               != unp_a.Id               { diff["id"]                 = unp_b.Id              }
+  if unp_b.NeedsStreamMap   != unp_a.NeedsStreamMap   { diff["needs_stream_map"]   = b_needs_stream_map    }
+  if unp_b.NeedsTranscoding != unp_a.NeedsTranscoding { diff["needs_transcoding"]  = b_needs_transcoding   }
+  if unp_b.NeedsMetadata    != unp_a.NeedsMetadata    { diff["needs_metadata"]     = b_needs_metadata      }
+  if unp_b.SourceLocation   != unp_a.SourceLocation   { diff["source_location"]    = unp_b.SourceLocation  }
+  if unp_b.SourceContainer  != unp_a.SourceContainer  { diff["source_container"]   = unp_b.SourceContainer }
+  if b_source_streams       != a_source_streams       { diff["source_streams"]     = b_source_streams      }
+  if b_transcoded_streams   != a_transcoded_streams   { diff["transcoded_streams"] = b_transcoded_streams  }
+  if unp_b.MatchData        != unp_a.MatchData        { diff["match_data"]         = unp_b.MatchData       }
+  if unp_b.ProvisionalId    != unp_a.ProvisionalId    { diff["provisional_id"]     = unp_b.ProvisionalId   }
+  if unp_b.CreatedAt        != unp_a.CreatedAt        { diff["created_at"]         = unp_b.CreatedAt       }
 
   return diff, nil
 }

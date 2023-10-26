@@ -60,6 +60,7 @@ func createTableCategories(db *sql.DB) (err error) {
 }
 
 func createTableUnprocessed(db *sql.DB) (err error) {
+  // transcoded_location and provisional_id should be unique, but only once populated, so... not unique
   _, err = db.Exec(`CREATE TABLE unprocessed (
     id                  TEXT NOT NULL PRIMARY KEY UNIQUE,
     needs_stream_map    INTEGER NOT NULL,
@@ -67,10 +68,11 @@ func createTableUnprocessed(db *sql.DB) (err error) {
     needs_metadata      INTEGER NOT NULL,
     source_location     TEXT NOT NULL UNIQUE,
     source_streams      TEXT NOT NULL,
-    transcoded_location TEXT NOT NULL UNIQUE,
+    source_container    TEXT NOT NULL,
+    transcoded_location TEXT NOT NULL,
     transcoded_streams  TEXT NOT NULL,
     match_data          TEXT NOT NULL,
-    provisional_id      TEXT NOT NULL UNIQUE,
+    provisional_id      TEXT NOT NULL,
     created_at          INTEGER NOT NULL
   );`)
   if err != nil { return err }
@@ -98,11 +100,11 @@ func createTableMetadata(db *sql.DB, table_name string) (err error) {
     release_year      INTEGER NOT NULL,
     release_month     INTEGER NOT NULL,
     release_day       INTEGER NOT NULL,
-    index             INTEGER NOT NULL,
+    sibling_index     INTEGER NOT NULL,
     has_poster        INTEGER NOT NULL,
     location          TEXT NOT NULL UNIQUE,
     size              INTEGER NOT NULL,
-    duration          INTEGER NOT NULL
+    duration          INTEGER NOT NULL,
     streams           TEXT NOT NULL
   );`)
   if err != nil { return err }

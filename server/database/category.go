@@ -34,10 +34,16 @@ func (cat *Category) SetType(db *sql.DB, new_type CategoryType) (err error) {
   return TableUpdate(db, cat, &cat_proposed)
 }
 
+func CategoryRead(db *sql.DB, id string) (cat Category, err error) {
+  err = TableRead(db, &cat, id)
+  return cat, err
+}
+
 func CategoryList(db *sql.DB) (cat_list []Category, err error) {
   tables, err := TableWhere(db, &Category{}, "")
   if err != nil { return nil, err }
-  for _, table := range tables { cat_list = append(cat_list, *(table.(*Category))) }
+  cat_list = make([]Category, len(tables))
+  for index, table := range tables { cat_list[index] = *(table.(*Category)) }
   return cat_list, nil
 }
 
@@ -46,6 +52,7 @@ func CategoryList(db *sql.DB) (cat_list []Category, err error) {
 
 func (cat *Category) TableName() string { return "categories"}
 func (cat *Category) GetId() string { return cat.Id }
+func (cat *Category) SetId(id string) { cat.Id = id }
 
 func (cat *Category) CreateFrom(fields map[string]any) (instance Table, err error) {
   new_instance := Category {}
@@ -55,6 +62,7 @@ func (cat *Category) CreateFrom(fields map[string]any) (instance Table, err erro
 }
 
 func (cat *Category) FieldsRead() (fields map[string]any, err error) {
+  fields = make(map[string]any)
   fields["id"]   = cat.Id
   fields["type"] = string(cat.Type)
   fields["name"] = cat.Name
@@ -62,13 +70,14 @@ func (cat *Category) FieldsRead() (fields map[string]any, err error) {
 }
 
 func (cat *Category) FieldsWrite(fields map[string]any) (err error) {
-  cat.Id  = fields["id"].(string)
+  cat.Id   = fields["id"].(string)
   cat.Type = CategoryType(fields["type"].(string))
   cat.Name = fields["name"].(string)
   return nil
 }
 
 func (cat_a *Category) FieldsDifference(other Table) (diff map[string]any, err error) {
+  diff = make(map[string]any)
   cat_b, b_is_cat := other.(*Category)
   if b_is_cat == false { return diff, ErrInvalidType }
 
@@ -87,11 +96,17 @@ func (cat_a *Category) ValidUpdate(db *sql.DB, other Table) (valid bool, err err
   cat_b, b_is_cat := other.(*Category)
   if b_is_cat == false { return false, ErrInvalidType }
 
-  // if changing type, ensure category is empty
+  // only need to check for type changes
   if cat_a.Type == cat_b.Type { return true, nil }
+  // first, ensure a valid type
+  switch cat_b.Type {
+    case CategoryTypeMovie, CategoryTypeSeries, CategoryTypeMusic: break
+    default: return false, nil
+  }
+  // then, only allow changing type if no items already assigned
   empty, err := categoryIsEmpty(db, cat_a.Id)
   if err != nil { return false, ErrQueryFailed }
-  if (empty == false) { return false, ErrCategoryNotEmpty }
+  if (empty == false) { return false, nil }
 
   return true, nil
 }
@@ -100,7 +115,7 @@ func (cat *Category) ValidDelete(db *sql.DB) (valid bool, err error) {
   // ensure category is empty before deleting
   empty, err := categoryIsEmpty(db, cat.Id)
   if err != nil { return false, ErrQueryFailed }
-  if (empty == false) { return false, ErrCategoryNotEmpty }
+  if (empty == false) { return false, nil }
   return true, nil
 }
 

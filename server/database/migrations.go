@@ -53,8 +53,8 @@ func MigrateTo(level_target uint32) (err error) {
       err = Migrations[index].Up()
       if err != nil {
         err_new := BackupRestore()
-        if err_new != nil { return fmt.Errorf("Migration and rollback failed: %s; %s", err.Error(), err_new.Error()) }
-        return fmt.Errorf("Migration failed (rollback successful): %s", err.Error())
+        if err_new != nil { return fmt.Errorf("Migration step %d, and rollback failed: %s; %s", index, err.Error(), err_new.Error()) }
+        return fmt.Errorf("Migration step %d failed (rollback successful): %s", index, err.Error())
       }
     }
   } else {
@@ -62,8 +62,8 @@ func MigrateTo(level_target uint32) (err error) {
       err = Migrations[index].Down()
       if err != nil {
         err_new := BackupRestore()
-        if err_new != nil { return fmt.Errorf("Migration and rollback failed: %s; %s", err.Error(), err_new.Error()) }
-        return fmt.Errorf("Migration failed (rollback successful): %s", err.Error())
+        if err_new != nil { return fmt.Errorf("Migration step %d, and rollback failed: %s; %s", index, err.Error(), err_new.Error()) }
+        return fmt.Errorf("Migration step %d failed (rollback successful): %s", index, err.Error())
       }
     }
   }
