@@ -13,12 +13,12 @@ const (
 )
 type Stream struct {
   Type     StreamType `json:"type"`
-  Index    uint64     `json:"index"`
+  Index    int64      `json:"index"`
   Codec    string     `json:"codec"`
-  Width    uint64     `json:"width"`
-  Height   uint64     `json:"height"`
-  Fps      uint64     `json:"fps"`
-  Channels uint64     `json:"channels"`
+  Width    int64      `json:"width"`
+  Height   int64      `json:"height"`
+  Fps      int64      `json:"fps"`
+  Channels int64      `json:"channels"`
   Language string     `json:"language"`
 }
 
@@ -44,14 +44,14 @@ type MetadataCommon struct {
   DescriptionShort  string       `json:"description_short"`
   DescriptionLong   string       `json:"description_long"`
   Genre             string       `json:"genre"`
-  ReleaseYear       uint64       `json:"release_year"`
-  ReleaseMonth      uint64       `json:"release_month"`
-  ReleaseDay        uint64       `json:"release_day"`
-  SiblingIndex      uint64       `json:"sibling_index"` // Season/Episode/Track number
+  ReleaseYear       int64        `json:"release_year"`
+  ReleaseMonth      int64        `json:"release_month"`
+  ReleaseDay        int64        `json:"release_day"`
+  SiblingIndex      int64        `json:"sibling_index"` // Season/Episode/Track number
   HasPoster         bool         `json:"has_poster"`
   Location          string       `json:"-"`             // Location of the file, not included in JSON
-  Size              uint64       `json:"size"`
-  Duration          uint64       `json:"duration"`
+  Size              int64        `json:"size"`
+  Duration          int64        `json:"duration"`
   Streams           []Stream     `json:"streams"`
 }
 
@@ -121,7 +121,7 @@ func (md *MetadataCommon) SetId(id string) {
 
 func (md *MetadataCommon) FieldsRead() (fields map[string]any, err error) {
   fields = make(map[string]any)
-  has_poster := uint64(0) ; if md.HasPoster { has_poster = 1 }
+  has_poster := int64(0) ; if md.HasPoster { has_poster = 1 }
   streams_bytes, err := json.Marshal(md.Streams) ; if err != nil { return nil, err } ; streams_string := string(streams_bytes)
 
   fields["id"               ] = md.Id
@@ -150,7 +150,7 @@ func (md *MetadataCommon) FieldsRead() (fields map[string]any, err error) {
 }
 
 func (md *MetadataCommon) FieldsWrite(fields map[string]any) (err error) {
-  has_poster := fields["has_poster"].(uint64) == 1
+  has_poster := fields["has_poster"].(int64) == 1
   streams_string := fields["streams"].(string) ; var streams []Stream ; err = json.Unmarshal([]byte(streams_string), &streams) ; if err != nil { return err }
 
   md.Id               = fields["id"               ].(string)
@@ -165,14 +165,14 @@ func (md *MetadataCommon) FieldsWrite(fields map[string]any) (err error) {
   md.DescriptionShort = fields["description_short"].(string)
   md.DescriptionLong  = fields["description_long" ].(string)
   md.Genre            = fields["genre"            ].(string)
-  md.ReleaseYear      = fields["release_year"     ].(uint64)
-  md.ReleaseMonth     = fields["release_month"    ].(uint64)
-  md.ReleaseDay       = fields["release_day"      ].(uint64)
-  md.SiblingIndex     = fields["sibling_index"    ].(uint64)
+  md.ReleaseYear      = fields["release_year"     ].(int64)
+  md.ReleaseMonth     = fields["release_month"    ].(int64)
+  md.ReleaseDay       = fields["release_day"      ].(int64)
+  md.SiblingIndex     = fields["sibling_index"    ].(int64)
   md.HasPoster        = has_poster
   md.Location         = fields["location"         ].(string)
-  md.Size             = fields["size"             ].(uint64)
-  md.Duration         = fields["duration"         ].(uint64)
+  md.Size             = fields["size"             ].(int64)
+  md.Duration         = fields["duration"         ].(int64)
   md.Streams          = streams
 
   return nil
@@ -183,7 +183,7 @@ func (md_a *MetadataCommon) FieldsDifference(other Table) (diff map[string]any, 
   md_b, b_is_md := other.(*Metadata)
   if b_is_md == false { return diff, ErrInvalidType }
 
-  b_has_poster := uint64(0) ; if md_b.HasPoster { b_has_poster = 1 }
+  b_has_poster := int64(0) ; if md_b.HasPoster { b_has_poster = 1 }
   a_streams_bytes, err := json.Marshal(md_a.Streams) ; if err != nil { return nil, err } ; a_streams_string := string(a_streams_bytes)
   b_streams_bytes, err := json.Marshal(md_b.Streams) ; if err != nil { return nil, err } ; b_streams_string := string(b_streams_bytes)
 
