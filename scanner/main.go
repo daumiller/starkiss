@@ -4,114 +4,74 @@ import (
 	"os"
   "fmt"
 	"math"
-  "sync"
 	"time"
   "strconv"
 	"strings"
 	"path/filepath"
+  "database/sql"
   "github.com/yargevad/filepathx"
 	"github.com/daumiller/starkiss/database"
-	"github.com/gofiber/fiber/v2"
 	"github.com/vansante/go-ffprobe"
 )
 
-func adminScannerStartup() {
-  adminScannerChannel = make(chan string)
-  adminScannerMutex   = sync.Mutex{}
-  go adminScannerProcess()
-}
+var DB *sql.DB = nil
 
-func adminScannerStatus(context *fiber.Ctx) error {
-  return context.JSON(adminScanner)
-}
+func main() {
+  if os.Getenv("DBFILE") != "" { database.Location = os.Getenv("DBFILE") }
 
-func adminScannerStart(context *fiber.Ctx) error {
-  adminScannerMutex.Lock()
-  defer adminScannerMutex.Unlock()
-
-  body := struct { Path string `json:"path"` } {}
-  if err := context.BodyParser(&body); err != nil { return context.SendStatus(400) }
-  if body.Path == "" { return context.Status(400).JSON(map[string]string{ "error": "missing path" }) }
-
-  if adminScanner.Status == "running" { return context.Status(400).JSON(map[string]string{ "error": "already running" }) }
-  if adminScanner.Status == "idle"    { adminScannerChannel <- body.Path }
-  return context.JSON(adminScanner)
-}
-
-func adminScannerStop(context *fiber.Ctx) error {
-  adminScannerMutex.Lock()
-  defer adminScannerMutex.Unlock()
-
-  if adminScanner.Status == "idle" { return context.Status(400).JSON(map[string]string{ "error": "not running" }) }
-  adminScanner.ShouldQuit = true
-  return context.JSON(adminScanner)
-}
-
-type adminScannerData struct {
-  Status         string   `json:"status"`
-  ScanPath       string   `json:"scan_path"`
-  LatestFile     string   `json:"latest_file"`
-  StartedTime    int64    `json:"started_time"`
-  TotalCount     int64    `json:"total_count"`
-  ProcessedCount int64    `json:"processed_count"`
-  SkippedCount   int64    `json:"skipped_count"`
-  ShouldQuit     bool     `json:"should_quit"`
-}
-var adminScanner        adminScannerData
-var adminScannerChannel chan string
-var adminScannerMutex   sync.Mutex
-
-func adminScannerProcess() {
-  for {
-    adminScanner.Status         = "idle"
-    adminScanner.ScanPath       = ""
-    adminScanner.LatestFile     = ""
-    adminScanner.StartedTime    = 0
-    adminScanner.TotalCount     = 0
-    adminScanner.ProcessedCount = 0
-    adminScanner.SkippedCount   = 0
-    adminScanner.ShouldQuit     = false
-
-    adminScanner.ScanPath    = <- adminScannerChannel
-    adminScanner.Status      = "running"
-    adminScanner.StartedTime = time.Now().Unix()
-
-    paths, err := filepathx.Glob(adminScanner.ScanPath)
-    if err != nil { continue }
-    adminScanner.TotalCount = int64(len(paths))
-
-    for _, path := range paths {
-      if adminScanner.ShouldQuit == true { break }
-      skip_reason := adminScannerProcessFile(path)
-      adminScanner.LatestFile = path
-      adminScanner.ProcessedCount += 1
-      if skip_reason != "" {
-        adminScanner.SkippedCount += 1
-        fmt.Printf("Skipping \"%s\": (%s)\n", path, skip_reason)
-      }
-    }
+  if len(os.Args) < 2 {
+    fmt.Printf("Usage: scanner <path>\n")
+    fmt.Printf("  <path> is a glob pattern to match files against (ex: \"/media/**/*.mp4\")\n")
+    fmt.Printf("  <path> can also be a single file\n")
+    fmt.Printf("Use DBFILE environment variable to set alternate path to database.\n")
+    fmt.Printf("\n")
+    os.Exit(0)
   }
+
+  paths, err := filepathx.Glob(os.Args[1])
+  if err != nil { fmt.Printf("Error processing glob: %s\n", err.Error()) ; os.Exit(-1) }
+
+  DB, err = database.Open()
+  if err != nil { fmt.Printf("Error opening database: %s\n", err.Error()) ; os.Exit(-1) }
+  defer DB.Close()
+
+  fmt.Printf("Scanning %d paths...\n", len(paths))
+  for _, path := range paths {
+    skipped_reason := processFile(path)
+    if skipped_reason != "" { fmt.Printf("Skipped \"%s\" (%s)\n", path, skipped_reason) }
+  }
+
+  fmt.Printf("Done!\n")
 }
 
-func adminScannerGetFps(fps_string string) int64 {
+func convertFpsString(fps_string string) int64 {
   split := strings.Split(fps_string, "/")                ; if len(split) != 2 { return 0 }
   numerator  , err := strconv.ParseInt(split[0], 10, 64) ; if err != nil { return 0 }
   denominator, err := strconv.ParseInt(split[1], 10, 64) ; if err != nil { return 0 }
   if denominator < 1 { return 0 }
   floating := float64(numerator) / float64(denominator)
   ceiling := math.Ceil(floating)
+  // we have a value, but it's often wrong, do basic checks
+  if ceiling < 10.0  { return 0 }
   if ceiling > 320.0 { return 0 } // found some invalid files with things like 90000/1
   return int64(ceiling)
 }
 
-func adminScannerProcessFile(path string) (skip_reason string) {
+func processFile(path string) (skip_reason string) {
+  lookup_row := DB.QueryRow("SELECT id FROM unprocessed WHERE source_location = ?", path)
+  lookup_id := ""
+  err := lookup_row.Scan(&lookup_id)
+  if err == nil { return "already-processed" }
+
   basename := filepath.Base(path)
   if basename[0] == '.' { return "hidden" }
+
   fileinfo, err := os.Stat(path)
   if err != nil { return "stat-error" }
+
   if fileinfo.IsDir() { return "directory" }
 
-  probe, err := ffprobe.GetProbeData(path, time.Second * 5)
+  probe, err := ffprobe.GetProbeData(path, time.Second * 30)
   if err != nil { return "probe-error" }
   if len(probe.Streams) < 1 { return "no-streams" }
 
@@ -139,11 +99,17 @@ func adminScannerProcessFile(path string) (skip_reason string) {
       video_stream.Codec    = probe_stream.CodecName
       video_stream.Width    = int64(probe_stream.Width)
       video_stream.Height   = int64(probe_stream.Height)
-      video_stream.Fps      = adminScannerGetFps(probe_stream.RFrameRate)
+      video_stream.Fps      = 0
       video_stream.Channels = 0
       video_stream.Language = ""
-      unproc.SourceStreams = append(unproc.SourceStreams, video_stream)
 
+      r_fps := convertFpsString(probe_stream.RFrameRate)
+      a_fps := convertFpsString(probe_stream.AvgFrameRate)
+      if (r_fps  > 0) && (a_fps == 0) { video_stream.Fps = r_fps }
+      if (r_fps == 0) && (a_fps  > 0) { video_stream.Fps = a_fps }
+      if (r_fps  > 0) && (a_fps  > 0) { video_stream.Fps = int64(math.Min(float64(r_fps), float64(a_fps))) }
+
+      unproc.SourceStreams = append(unproc.SourceStreams, video_stream)
       video_stream_index = probe_stream.Index
       video_stream_count += 1
       if (video_usable == false) && (probe_stream.CodecName == "h264") { video_usable = true }
@@ -157,8 +123,8 @@ func adminScannerProcessFile(path string) (skip_reason string) {
       audio_stream.Fps      = 0
       audio_stream.Channels = int64(probe_stream.Channels)
       audio_stream.Language = probe_stream.Tags.Language
-      unproc.SourceStreams = append(unproc.SourceStreams, audio_stream)
 
+      unproc.SourceStreams = append(unproc.SourceStreams, audio_stream)
       audio_stream_index = probe_stream.Index
       audio_stream_count += 1
       if (audio_usable == false) && (probe_stream.CodecName == "aac") { audio_usable = true }
@@ -172,8 +138,8 @@ func adminScannerProcessFile(path string) (skip_reason string) {
       subtitle_stream.Fps      = 0
       subtitle_stream.Channels = 0
       subtitle_stream.Language = probe_stream.Tags.Language
-      unproc.SourceStreams = append(unproc.SourceStreams, subtitle_stream)
 
+      unproc.SourceStreams = append(unproc.SourceStreams, subtitle_stream)
       subtitle_stream_index = probe_stream.Index
       subtitle_stream_count += 1
       if (subtitle_usable == false) && (probe_stream.CodecName == "mov_text") { subtitle_usable = true }
@@ -197,6 +163,6 @@ func adminScannerProcessFile(path string) (skip_reason string) {
   if err != nil {
     println(err.Error())
     return "database-error"
-  } // TODO: report skips
+  }
   return ""
 }

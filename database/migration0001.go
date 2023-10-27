@@ -16,6 +16,7 @@ func (m *Migration0001) Up() (err error) {
   err = createTableMetadata(db, "metadata")    ; if err != nil { return err }
   err = createTableMetadata(db, "provisional") ; if err != nil { return err }
   err = createTableUnprocessed(db)             ; if err != nil { return err }
+  err = createTableTranscodingTasks(db)        ; if err != nil { return err }
 
   return nil
 }
@@ -25,11 +26,12 @@ func (m *Migration0001) Down() (error) {
   if err != nil { return err }
   defer Close(db)
 
-  _, err = db.Exec(`DROP TABLE unprocessed;`) ; if err != nil { return err }
-  _, err = db.Exec(`DROP TABLE provisional;`) ; if err != nil { return err }
-  _, err = db.Exec(`DROP TABLE metadata;`   ) ; if err != nil { return err }
-  _, err = db.Exec(`DROP TABLE categories;` ) ; if err != nil { return err }
-  _, err = db.Exec(`DROP TABLE properties;` ) ; if err != nil { return err }
+  _, err = db.Exec(`DROP TABLE transcoding_tasks;`) ; if err != nil { return err }
+  _, err = db.Exec(`DROP TABLE unprocessed;`      ) ; if err != nil { return err }
+  _, err = db.Exec(`DROP TABLE provisional;`      ) ; if err != nil { return err }
+  _, err = db.Exec(`DROP TABLE metadata;`         ) ; if err != nil { return err }
+  _, err = db.Exec(`DROP TABLE categories;`       ) ; if err != nil { return err }
+  _, err = db.Exec(`DROP TABLE properties;`       ) ; if err != nil { return err }
 
   return nil
 }
@@ -81,6 +83,22 @@ func createTableUnprocessed(db *sql.DB) (err error) {
   _, err = db.Exec(`CREATE INDEX unprocessed_ntc ON unprocessed (needs_transcoding);`) ; if err != nil { return err }
   _, err = db.Exec(`CREATE INDEX unprocessed_nmd ON unprocessed (needs_metadata);`   ) ; if err != nil { return err }
   return nil
+}
+
+func createTableTranscodingTasks(db *sql.DB) (err error) {
+  _, err = db.Exec(`CREATE TABLE transcoding_tasks (
+    id              TEXT NOT NULL PRIMARY KEY UNIQUE,
+    unprocessed_id  TEXT NOT NULL UNIQUE,
+    time_started    INTEGER NOT NULL,
+    time_elapsed    INTEGER NOT NULL,
+    status          TEXT NOT NULL,
+    error_message   TEXT NOT NULL,
+    command_line    TEXT NOT NULL
+  );`)
+  if err != nil { return err }
+
+  _, err = db.Exec(`CREATE INDEX transcoding_tasks_unprocessed_id ON transcoding_tasks (unprocessed_id);`)
+  return err
 }
 
 func createTableMetadata(db *sql.DB, table_name string) (err error) {

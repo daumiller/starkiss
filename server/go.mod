@@ -9,7 +9,7 @@ require (
 	github.com/yargevad/filepathx v1.0.0
 )
 
-replace github.com/daumiller/starkiss/database => ./database
+replace github.com/daumiller/starkiss/database => ./../database
 
 require (
 	github.com/andybalholm/brotli v1.0.5 // indirect

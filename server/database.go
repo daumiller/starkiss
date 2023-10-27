@@ -59,27 +59,7 @@ func startupProperties() {
     JWTKEY = key_bytes
   }
 
-  // Ensure we have a media path.
-  media_path, err := database.PropertyRead(DB, "mediapath")
-  if err == nil {
-    MEDIAPATH = media_path
-  } else {
-    fmt.Printf("Creating media directory...\n")
-    err = database.PropertyUpsert(DB, "mediapath", MEDIAPATH)
-    if err != nil { fmt.Printf("Error creating media path: \"%s\"\n", err.Error()); os.Exit(-1) }
-    err = os.MkdirAll(MEDIAPATH, 0755)
-    if err != nil { fmt.Printf("Error creating media path: \"%s\"\n", err.Error()); os.Exit(-1) }
-  }
-
-  // Ensure we have a poster path.
-  poster_path, err := database.PropertyRead(DB, "posterpath")
-  if err == nil {
-    POSTERPATH = poster_path
-  } else {
-    fmt.Printf("Creating poster directory...\n")
-    err = database.PropertyUpsert(DB, "posterpath", POSTERPATH)
-    if err != nil { fmt.Printf("Error creating poster path: \"%s\"\n", err.Error()); os.Exit(-1) }
-    err = os.MkdirAll(POSTERPATH, 0755)
-    if err != nil { fmt.Printf("Error creating poster path: \"%s\"\n", err.Error()); os.Exit(-1) }
-  }
+  // cache media & poster paths
+  media_path, err  := database.PropertyRead(DB, "mediapath")  ; if err == nil { MEDIAPATH  = media_path  }
+  poster_path, err := database.PropertyRead(DB, "posterpath") ; if err == nil { POSTERPATH = poster_path }
 }

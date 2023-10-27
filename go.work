@@ -1,6 +1,8 @@
 go 1.21.1
 
 use (
-  ./server/database
+  ./database
   ./server
+  ./scanner
+  ./transcoder
 )

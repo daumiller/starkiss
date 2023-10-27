@@ -1,0 +1,32 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Server Debug",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "./server",
+      "args": [],
+      "env": { "CGO_ENABLED":"0", "GOOS":"darwin", }
+    },
+    {
+      "name": "Scanner Debug",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "./scanner",
+      "args": [],
+      "env": { "CGO_ENABLED":"0", "GOOS":"darwin", }
+    },
+    {
+      "name": "Transcoder Debug",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "./transcoder",
+      "args": [],
+      "env": { "CGO_ENABLED":"0", "GOOS":"darwin", }
+    }
+  ]
+}
