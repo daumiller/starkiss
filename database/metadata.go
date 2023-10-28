@@ -21,6 +21,18 @@ type Stream struct {
   Channels int64      `json:"channels"`
   Language string     `json:"language"`
 }
+func (stream *Stream) Copy() (copy Stream) {
+  copy = Stream{}
+  copy.Type     = stream.Type
+  copy.Index    = stream.Index
+  copy.Codec    = stream.Codec
+  copy.Width    = stream.Width
+  copy.Height   = stream.Height
+  copy.Fps      = stream.Fps
+  copy.Channels = stream.Channels
+  copy.Language = stream.Language
+  return copy
+}
 
 type MetadataType string
 const (

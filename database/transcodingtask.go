@@ -35,6 +35,37 @@ func (tct *TranscodingTask) Delete(db *sql.DB) (err error) {
   return TableDelete(db, tct)
 }
 
+func (tct *TranscodingTask) Copy() (new_tct *TranscodingTask) {
+  new_tct = &TranscodingTask{}
+  new_tct.Id            = tct.Id
+  new_tct.UnprocessedId = tct.UnprocessedId
+  new_tct.TimeStarted   = tct.TimeStarted
+  new_tct.TimeElapsed   = tct.TimeElapsed
+  new_tct.Status        = tct.Status
+  new_tct.ErrorMessage  = tct.ErrorMessage
+  new_tct.CommandLine   = tct.CommandLine
+  return new_tct
+}
+
+func TranscodingTaskNext(db *sql.DB) (tct *TranscodingTask, err error) {
+  id_row := db.QueryRow("SELECT id FROM transcoding_tasks WHERE status = ? LIMIT 1", TranscodingTaskTodo)
+  var id string
+  err = id_row.Scan(&id)
+  if err == sql.ErrNoRows { return nil, ErrNotFound }
+  if err != nil { return nil, err }
+
+  result, err := db.Exec("UPDATE transcoding_tasks SET status = ? WHERE id = ?", TranscodingTaskRunning, id)
+  if err != nil { return nil, err }
+  rows_affected, err := result.RowsAffected()
+  if err != nil { return nil, err }
+  if rows_affected != 1 { return nil, ErrNotFound }
+
+  tct = &TranscodingTask{}
+  err = TableRead(db, tct, id)
+  if err != nil { return nil, err }
+  return tct, nil
+}
+
 // ============================================================================
 // Table interface
 

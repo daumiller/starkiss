@@ -14,6 +14,7 @@ type Unprocessed struct {
   SourceLocation     string      `json:"source_location"`
   SourceStreams      []Stream    `json:"source_streams"`
   SourceContainer    string      `json:"source_container"`
+  Duration           int64       `json:"duration"`
   TranscodedLocation string      `json:"transcoded_location"`
   TranscodedStreams  []int64     `json:"transcoded_streams"` // this lists indices of source streams
   MatchData          string      `json:"match_data"`         // JSON match data
@@ -33,6 +34,26 @@ func (unp *Unprocessed) Update(db *sql.DB, new_values *Unprocessed) (err error) 
 
 func (unp *Unprocessed) Delete(db *sql.DB) (err error) {
   return TableDelete(db, unp)
+}
+
+func (unp *Unprocessed) Copy() (copy *Unprocessed) {
+  copy = &Unprocessed{}
+  copy.Id                 = unp.Id
+  copy.NeedsStreamMap     = unp.NeedsStreamMap
+  copy.NeedsTranscoding   = unp.NeedsTranscoding
+  copy.NeedsMetadata      = unp.NeedsMetadata
+  copy.SourceLocation     = unp.SourceLocation
+  copy.SourceStreams      = make([]Stream, len(unp.SourceStreams))
+  for index, stream := range unp.SourceStreams { copy.SourceStreams[index] = stream.Copy() }
+  copy.SourceContainer    = unp.SourceContainer
+  copy.Duration           = unp.Duration
+  copy.TranscodedLocation = unp.TranscodedLocation
+  copy.TranscodedStreams  = make([]int64, len(unp.TranscodedStreams))
+  for index, value := range unp.TranscodedStreams { copy.TranscodedStreams[index] = value }
+  copy.MatchData          = unp.MatchData
+  copy.ProvisionalId      = unp.ProvisionalId
+  copy.CreatedAt          = unp.CreatedAt
+  return copy
 }
 
 func UnprocessedRead(db *sql.DB, id string) (unp Unprocessed, err error) {
@@ -85,6 +106,7 @@ func (unp *Unprocessed) FieldsRead() (fields map[string]any, err error) {
   fields["source_location"]     = unp.SourceLocation
   fields["source_streams"]      = source_streams
   fields["source_container"]    = unp.SourceContainer
+  fields["duration"]            = unp.Duration
   fields["transcoded_location"] = unp.TranscodedLocation
   fields["transcoded_streams"]  = transcoded_streams
   fields["match_data"]          = unp.MatchData
@@ -95,9 +117,9 @@ func (unp *Unprocessed) FieldsRead() (fields map[string]any, err error) {
 }
 
 func (unp *Unprocessed) FieldsWrite(fields map[string]any) (err error) {
-  needs_stream_map  := false ; if (fields["needs_stream_map"]   == 1) { needs_stream_map  = true }
-  needs_transcoding := false ; if (fields["needs_transcoding"]  == 1) { needs_transcoding = true }
-  needs_metadata    := false ; if (fields["needs_metadata"]     == 1) { needs_metadata    = true }
+  needs_stream_map  := false ; if (fields["needs_stream_map"].(int64)   == 1) { needs_stream_map  = true }
+  needs_transcoding := false ; if (fields["needs_transcoding"].(int64)  == 1) { needs_transcoding = true }
+  needs_metadata    := false ; if (fields["needs_metadata"].(int64)     == 1) { needs_metadata    = true }
   source_streams     := []Stream {} ; err = json.Unmarshal([]byte(fields["source_streams"    ].(string)), &source_streams)     ; if err != nil { return err }
   transcoded_streams := []int64  {} ; err = json.Unmarshal([]byte(fields["transcoded_streams"].(string)), &transcoded_streams) ; if err != nil { return err }
 
@@ -108,6 +130,7 @@ func (unp *Unprocessed) FieldsWrite(fields map[string]any) (err error) {
   unp.SourceLocation      = fields["source_location"].(string)
   unp.SourceStreams       = source_streams
   unp.SourceContainer     = fields["source_container"].(string)
+  unp.Duration            = fields["duration"].(int64)
   unp.TranscodedLocation  = fields["transcoded_location"].(string)
   unp.TranscodedStreams   = transcoded_streams
   unp.MatchData           = fields["match_data"].(string)
@@ -130,17 +153,19 @@ func (unp_a *Unprocessed) FieldsDifference(other Table) (diff map[string]any, er
   b_source_bytes,     err := json.Marshal(unp_b.SourceStreams)     ; if err != nil { return diff, err } ; b_source_streams     := string(b_source_bytes)
   b_transcoded_bytes, err := json.Marshal(unp_b.TranscodedStreams) ; if err != nil { return diff, err } ; b_transcoded_streams := string(b_transcoded_bytes)
 
-  if unp_b.Id               != unp_a.Id               { diff["id"]                 = unp_b.Id              }
-  if unp_b.NeedsStreamMap   != unp_a.NeedsStreamMap   { diff["needs_stream_map"]   = b_needs_stream_map    }
-  if unp_b.NeedsTranscoding != unp_a.NeedsTranscoding { diff["needs_transcoding"]  = b_needs_transcoding   }
-  if unp_b.NeedsMetadata    != unp_a.NeedsMetadata    { diff["needs_metadata"]     = b_needs_metadata      }
-  if unp_b.SourceLocation   != unp_a.SourceLocation   { diff["source_location"]    = unp_b.SourceLocation  }
-  if unp_b.SourceContainer  != unp_a.SourceContainer  { diff["source_container"]   = unp_b.SourceContainer }
-  if b_source_streams       != a_source_streams       { diff["source_streams"]     = b_source_streams      }
-  if b_transcoded_streams   != a_transcoded_streams   { diff["transcoded_streams"] = b_transcoded_streams  }
-  if unp_b.MatchData        != unp_a.MatchData        { diff["match_data"]         = unp_b.MatchData       }
-  if unp_b.ProvisionalId    != unp_a.ProvisionalId    { diff["provisional_id"]     = unp_b.ProvisionalId   }
-  if unp_b.CreatedAt        != unp_a.CreatedAt        { diff["created_at"]         = unp_b.CreatedAt       }
+  if unp_b.Id                 != unp_a.Id                 { diff["id"]                  = unp_b.Id                 }
+  if unp_b.NeedsStreamMap     != unp_a.NeedsStreamMap     { diff["needs_stream_map"]    = b_needs_stream_map       }
+  if unp_b.NeedsTranscoding   != unp_a.NeedsTranscoding   { diff["needs_transcoding"]   = b_needs_transcoding      }
+  if unp_b.NeedsMetadata      != unp_a.NeedsMetadata      { diff["needs_metadata"]      = b_needs_metadata         }
+  if unp_b.SourceLocation     != unp_a.SourceLocation     { diff["source_location"]     = unp_b.SourceLocation     }
+  if unp_b.SourceContainer    != unp_a.SourceContainer    { diff["source_container"]    = unp_b.SourceContainer    }
+  if unp_b.Duration           != unp_a.Duration           { diff["duration"]            = unp_b.Duration           }
+  if unp_b.TranscodedLocation != unp_a.TranscodedLocation { diff["transcoded_location"] = unp_b.TranscodedLocation }
+  if b_source_streams         != a_source_streams         { diff["source_streams"]      = b_source_streams         }
+  if b_transcoded_streams     != a_transcoded_streams     { diff["transcoded_streams"]  = b_transcoded_streams     }
+  if unp_b.MatchData          != unp_a.MatchData          { diff["match_data"]          = unp_b.MatchData          }
+  if unp_b.ProvisionalId      != unp_a.ProvisionalId      { diff["provisional_id"]      = unp_b.ProvisionalId      }
+  if unp_b.CreatedAt          != unp_a.CreatedAt          { diff["created_at"]          = unp_b.CreatedAt          }
 
   return diff, nil
 }

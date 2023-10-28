@@ -82,6 +82,7 @@ func processFile(path string) (skip_reason string) {
   unproc.SourceLocation     = path
   unproc.SourceStreams      = []database.Stream {}
   unproc.SourceContainer    = probe.Format.FormatLongName
+  unproc.Duration           = int64(probe.Format.DurationSeconds)
   unproc.TranscodedLocation = ""
   unproc.TranscodedStreams  = []int64 {}
   unproc.MatchData          = ""
@@ -127,7 +128,7 @@ func processFile(path string) (skip_reason string) {
       unproc.SourceStreams = append(unproc.SourceStreams, audio_stream)
       audio_stream_index = probe_stream.Index
       audio_stream_count += 1
-      if (audio_usable == false) && (probe_stream.CodecName == "aac") { audio_usable = true }
+      if (audio_usable == false) && (probe_stream.CodecName == "aac") && (probe_stream.Channels == 2) { audio_usable = true }
     } else if probe_stream.CodecType == "subtitle" {
       subtitle_stream := database.Stream{}
       subtitle_stream.Type     = database.StreamTypeSubtitle

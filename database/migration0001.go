@@ -71,6 +71,7 @@ func createTableUnprocessed(db *sql.DB) (err error) {
     source_location     TEXT NOT NULL UNIQUE,
     source_streams      TEXT NOT NULL,
     source_container    TEXT NOT NULL,
+    duration            INTEGER NOT NULL,
     transcoded_location TEXT NOT NULL,
     transcoded_streams  TEXT NOT NULL,
     match_data          TEXT NOT NULL,
