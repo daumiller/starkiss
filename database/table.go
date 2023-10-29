@@ -15,6 +15,7 @@ type Table interface {
   GetId() string                                                  // get the id
   SetId(id string)                                                // set the id
   CreateFrom(fields map[string]any) (instance Table, err error)   // create from field:values
+  CopyRecord() (instance Table, err error)                        // not strictly necessary, but enforced for usefulness
 
   FieldsRead() (fields map[string]any, err error)                 // read field:values from struct
   FieldsWrite(fields map[string]any) (err error)                  // write field:values to struct
@@ -94,6 +95,8 @@ func TableUpdate(db *sql.DB, current Table, proposed Table) (err error) {
   count, err := result.RowsAffected()
   if err != nil { return err }
   if count != 1 { return ErrQueryFailed }
+
+  current.FieldsWrite(difference)
   return nil
 }
 

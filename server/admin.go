@@ -5,25 +5,22 @@ import (
 )
 
 func startupAdminRoutes(server *fiber.App) {
-  server.Get ("/admin/paths", adminPathList  )
-  server.Post("/admin/paths", adminPathUpdate)
+  server.Get ("/admin/media-path", adminMediaPathList  )
+  server.Post("/admin/media-path", adminMediaPathUpdate)
 
   server.Get   ("/admin/categories",   adminCategoryList  )
   server.Post  ("/admin/category",     adminCategoryCreate)
   server.Post  ("/admin/category/:id", adminCategoryUpdate)
   server.Delete("/admin/category/:id", adminCategoryDelete)
 
-  server.Get   ("/admin/unprocessed",          adminUnprocessedList      )
-  server.Delete("/admin/unprocessed",          adminUnprocessedEmpty     ) // empty unprocessed table
-  server.Post  ("/admin/unprocessed/map/:id",  adminUnprocessedMap       ) // add stream map to unprocessed record
-  server.Post  ("/admin/unprocessed/queue",    adminUnprocessedQueue     ) // add unprocessed items to transcoding queue
-  server.Post  ("/admin/unprocessed/complete", adminUnprocessedComplete  ) // move completed unprocessed items (moves transcoded file to final location, updates metadata as live)
-  server.Delete("/admin/unprocessed/:id",      adminUnprocessedDelete    ) // remove item from unprocessed list
+  server.Get   ("/admin/metadata/by-parent/:parent_id", adminMetadataByParentList) // list all metadata for a parent
+  server.Post  ("/admin/metadata",                      adminMetadataCreate      ) // create new metadata (defaults to hidden) (requires a parent id, optionally specify a input-file for read-or-create)
+  server.Post  ("/admin/metadata/:id",                  adminMetadataUpdate      ) // update metadata
+  server.Delete("/admin/metadata/:id",                  adminMetadataDelete      ) // delete metadata (options for what to do with any children records)
 
-  server.Get   ("/admin/transcoding",       adminTranscodingList  )
-  server.Delete("/admin/transcoding",       adminTranscodingEmpty ) // empty transcoding queue
-  server.Post  ("/admin/transcoding/clean", adminTranscodingClean ) // clean transcoding queue (of completed tasks (success or failure options))
-  server.Delete("/admin/transcoding/:id",   adminTranscodingDelete) // remove item from transcoding queue  
-
-  // TODO: metadata matching & record creation
+  server.Get   ("/admin/input-files",             adminInputFileList    ) // list all input files
+  server.Delete("/admin/input-files",             adminInputFileDelete  ) // delete input file(s) (and transcoded file(s), if they exist)
+  server.Post  ("/admin/input-file/:id/map",      adminInputFileMap     ) // update stream_map
+  server.Post  ("/admin/input-file/:id/reset",    adminInputFileReset   ) // reset transcoding values (and delete transcoded file, if exists)
+  server.Post  ("/admin/input-file/:id/complete", adminInputFileComplete) // validate transcoding & metadata, move file to final destination, remove input-file record
 }

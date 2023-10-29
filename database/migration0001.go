@@ -11,11 +11,10 @@ func (m *Migration0001) Up() (err error) {
   if err != nil { return err }
   defer Close(db)
 
-  err = createTableProperties(db)       ; if err != nil { return err }
-  err = createTableCategories(db)       ; if err != nil { return err }
-  err = createTableMetadata(db)         ; if err != nil { return err }
-  err = createTableUnprocessed(db)      ; if err != nil { return err }
-  err = createTableTranscodingTasks(db) ; if err != nil { return err }
+  err = createTableProperties(db) ; if err != nil { return err }
+  err = createTableCategories(db) ; if err != nil { return err }
+  err = createTableMetadata(db)   ; if err != nil { return err }
+  err = createTableInputFiles(db) ; if err != nil { return err }
 
   return nil
 }
@@ -25,11 +24,10 @@ func (m *Migration0001) Down() (error) {
   if err != nil { return err }
   defer Close(db)
 
-  _, err = db.Exec(`DROP TABLE transcoding_tasks;`) ; if err != nil { return err }
-  _, err = db.Exec(`DROP TABLE unprocessed;`      ) ; if err != nil { return err }
-  _, err = db.Exec(`DROP TABLE metadata;`         ) ; if err != nil { return err }
-  _, err = db.Exec(`DROP TABLE categories;`       ) ; if err != nil { return err }
-  _, err = db.Exec(`DROP TABLE properties;`       ) ; if err != nil { return err }
+  _, err = db.Exec(`DROP TABLE input_files;` ) ; if err != nil { return err }
+  _, err = db.Exec(`DROP TABLE metadata;`    ) ; if err != nil { return err }
+  _, err = db.Exec(`DROP TABLE categories;`  ) ; if err != nil { return err }
+  _, err = db.Exec(`DROP TABLE properties;`  ) ; if err != nil { return err }
 
   return nil
 }
@@ -48,89 +46,55 @@ func createTableProperties(db *sql.DB) (err error) {
 
 func createTableCategories(db *sql.DB) (err error) {
   _, err = db.Exec(`CREATE TABLE categories (
-    id   TEXT NOT NULL PRIMARY KEY UNIQUE,
-    type TEXT NOT NULL,
-    name TEXT NOT NULL UNIQUE
+    id         TEXT NOT NULL PRIMARY KEY UNIQUE,
+    media_type TEXT NOT NULL,
+    name       TEXT NOT NULL UNIQUE
   );`)
   if err != nil { return err }
 
-  _, err = db.Exec(`CREATE UNIQUE INDEX categories_name ON categories (name);`) ; if err != nil { return err }
-  _, err = db.Exec(`CREATE INDEX categories_type ON categories (type);       `) ; if err != nil { return err }
+  _, err = db.Exec(`CREATE UNIQUE INDEX categories_name ON categories (name);     `) ; if err != nil { return err }
+  _, err = db.Exec(`CREATE INDEX categories_media_type ON categories (media_type);`) ; if err != nil { return err }
   return nil
-}
-
-func createTableUnprocessed(db *sql.DB) (err error) {
-  // transcoded_location should be unique, but only once populated, so... not unique
-  _, err = db.Exec(`CREATE TABLE unprocessed (
-    id                  TEXT NOT NULL PRIMARY KEY UNIQUE,
-    needs_stream_map    INTEGER NOT NULL,
-    needs_transcoding   INTEGER NOT NULL,
-    needs_metadata      INTEGER NOT NULL,
-    source_location     TEXT NOT NULL UNIQUE,
-    source_streams      TEXT NOT NULL,
-    source_container    TEXT NOT NULL,
-    duration            INTEGER NOT NULL,
-    transcoded_location TEXT NOT NULL,
-    transcoded_streams  TEXT NOT NULL,
-    match_data          TEXT NOT NULL,
-    metadata_id         TEXT NOT NULL,
-    created_at          INTEGER NOT NULL
-  );`)
-  if err != nil { return err }
-
-  _, err = db.Exec(`CREATE INDEX unprocessed_nsm ON unprocessed (needs_stream_map);` ) ; if err != nil { return err }
-  _, err = db.Exec(`CREATE INDEX unprocessed_ntc ON unprocessed (needs_transcoding);`) ; if err != nil { return err }
-  _, err = db.Exec(`CREATE INDEX unprocessed_nmd ON unprocessed (needs_metadata);`   ) ; if err != nil { return err }
-  return nil
-}
-
-func createTableTranscodingTasks(db *sql.DB) (err error) {
-  _, err = db.Exec(`CREATE TABLE transcoding_tasks (
-    id              TEXT NOT NULL PRIMARY KEY UNIQUE,
-    unprocessed_id  TEXT NOT NULL UNIQUE,
-    time_started    INTEGER NOT NULL,
-    time_elapsed    INTEGER NOT NULL,
-    status          TEXT NOT NULL,
-    error_message   TEXT NOT NULL,
-    command_line    TEXT NOT NULL
-  );`)
-  if err != nil { return err }
-
-  _, err = db.Exec(`CREATE INDEX transcoding_tasks_unprocessed_id ON transcoding_tasks (unprocessed_id);`)
-  return err
 }
 
 func createTableMetadata(db *sql.DB) (err error) {
   _, err = db.Exec(`CREATE TABLE metadata (
     id                TEXT NOT NULL PRIMARY KEY UNIQUE,
     category_id       TEXT NOT NULL,
-    category_type     TEXT NOT NULL,
     parent_id         TEXT NOT NULL,
-    grandparent_id    TEXT NOT NULL,
-    type              TEXT NOT NULL,
-    title_user        TEXT NOT NULL,
-    title_sort        TEXT NOT NULL,
-    match_data        TEXT NOT NULL,
-    description_short TEXT NOT NULL,
-    description_long  TEXT NOT NULL,
-    genre             TEXT NOT NULL,
-    release_year      INTEGER NOT NULL,
-    release_month     INTEGER NOT NULL,
-    release_day       INTEGER NOT NULL,
-    sibling_index     INTEGER NOT NULL,
-    has_poster        INTEGER NOT NULL,
-    location          TEXT NOT NULL UNIQUE,
-    size              INTEGER NOT NULL,
+    media_type        TEXT NOT NULL,
+    name_display      TEXT NOT NULL,
+    name_sort         TEXT NOT NULL,
+    streams           TEXT NOT NULL,
     duration          INTEGER NOT NULL,
-    streams           TEXT NOT NULL
+    size              INTEGER NOT NULL,
+    hidden            INTEGER NOT NULL
   );`)
   if err != nil { return err }
 
-  _, err = db.Exec(`CREATE INDEX metadata_parent   ON metadata (parent_id);    ` ) ; if err != nil { return err }
-  _, err = db.Exec(`CREATE INDEX metadata_cat_type ON metadata (category_type);` ) ; if err != nil { return err }
-  _, err = db.Exec(`CREATE INDEX metadata_type     ON metadata (type);         ` ) ; if err != nil { return err }
-  _, err = db.Exec(`CREATE INDEX metadata_title    ON metadata (title_user);   ` ) ; if err != nil { return err }
-  _, err = db.Exec(`CREATE INDEX metadata_genre    ON metadata (genre);        ` ) ; if err != nil { return err }
-  _, err = db.Exec(`CREATE INDEX metadata_year     ON metadata (release_year); ` ) ; if err != nil { return err }
+  _, err = db.Exec(`CREATE INDEX metadata_category     ON metadata (category_id);  ` ) ; if err != nil { return err }
+  _, err = db.Exec(`CREATE INDEX metadata_parent       ON metadata (parent_id);    ` ) ; if err != nil { return err }
+  _, err = db.Exec(`CREATE INDEX metadata_media_type   ON metadata (media_type);   ` ) ; if err != nil { return err }
+  _, err = db.Exec(`CREATE INDEX metadata_name_display ON metadata (name_display); ` ) ; if err != nil { return err }
+  _, err = db.Exec(`CREATE INDEX metadata_hidden       ON metadata (hidden);       ` ) ; if err != nil { return err }
+  return nil
+}
+
+func createTableInputFiles(db *sql.DB) (err error) {
+  // transcoded_location should be unique, but only once populated, so... not unique
+  _, err = db.Exec(`CREATE TABLE input_files (
+    id                       TEXT NOT NULL PRIMARY KEY UNIQUE,
+    source_location          TEXT NOT NULL UNIQUE,
+    transcoded_location      TEXT NOT NULL,
+    source_streams           TEXT NOT NULL,
+    stream_map               TEXT NOT NULL,
+    source_duration          INTEGER NOT NULL,
+    time_scanned             INTEGER NOT NULL,
+    transcoding_command      TEXT NOT NULL,
+    transcoding_time_started INTEGER NOT NULL,
+    transcoding_time_elapsed INTEGER NOT NULL,
+    transcoding_error        TEXT NOT NULL
+  );`)
+  if err != nil { return err }
   return nil
 }

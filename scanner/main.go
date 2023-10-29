@@ -9,6 +9,7 @@ import (
 	"strings"
 	"path/filepath"
   "database/sql"
+  "github.com/google/uuid"
   "github.com/yargevad/filepathx"
 	"github.com/daumiller/starkiss/database"
 	"github.com/vansante/go-ffprobe"
@@ -58,7 +59,7 @@ func convertFpsString(fps_string string) int64 {
 }
 
 func processFile(path string) (skip_reason string) {
-  lookup_row := DB.QueryRow("SELECT id FROM unprocessed WHERE source_location = ?", path)
+  lookup_row := DB.QueryRow("SELECT id FROM input_files WHERE source_location = ?", path)
   lookup_id := ""
   err := lookup_row.Scan(&lookup_id)
   if err == nil { return "already-processed" }
@@ -75,34 +76,33 @@ func processFile(path string) (skip_reason string) {
   if err != nil { return "probe-error" }
   if len(probe.Streams) < 1 { return "no-streams" }
 
-  unproc := database.Unprocessed{}
-  unproc.NeedsStreamMap     = false
-  unproc.NeedsTranscoding   = false
-  unproc.NeedsMetadata      = true
-  unproc.SourceLocation     = path
-  unproc.SourceStreams      = []database.Stream {}
-  unproc.SourceContainer    = probe.Format.FormatLongName
-  unproc.Duration           = int64(probe.Format.DurationSeconds)
-  unproc.TranscodedLocation = ""
-  unproc.TranscodedStreams  = []int64 {}
-  unproc.MatchData          = ""
-  unproc.MetadataId         = ""
-  unproc.CreatedAt          = time.Now().Unix()
+  inp := database.InputFile{}
+  inp.Id                     = uuid.NewString()
+  inp.SourceLocation         = path
+  inp.TranscodedLocation     = ""
+  inp.SourceStreams          = []database.FileStream {}
+  inp.StreamMap              = []int64 {}
+  inp.SourceDuration         = int64(probe.Format.DurationSeconds)
+  inp.TimeScanned            = time.Now().Unix()
+  inp.TranscodingCommand     = ""
+  inp.TranscodingTimeStarted = 0
+  inp.TranscodingTimeElapsed = 0
+  inp.TranscodingError       = ""
 
-  video_usable    := false ; video_stream_count    := 0 ; video_stream_index    := 0
-  audio_usable    := false ; audio_stream_count    := 0 ; audio_stream_index    := 0
-  subtitle_usable := false ; subtitle_stream_count := 0 ; subtitle_stream_index := 0
+  video_stream_count    := 0 ; video_stream_index    := 0
+  audio_stream_count    := 0 ; audio_stream_index    := 0
+  subtitle_stream_count := 0 ; subtitle_stream_index := 0
   for _, probe_stream := range probe.Streams {
     if probe_stream.CodecType == "video" {
-      video_stream := database.Stream{}
-      video_stream.Type     = database.StreamTypeVideo
-      video_stream.Index    = int64(probe_stream.Index)
-      video_stream.Codec    = probe_stream.CodecName
-      video_stream.Width    = int64(probe_stream.Width)
-      video_stream.Height   = int64(probe_stream.Height)
-      video_stream.Fps      = 0
-      video_stream.Channels = 0
-      video_stream.Language = ""
+      video_stream := database.FileStream{}
+      video_stream.StreamType = database.FileStreamTypeVideo
+      video_stream.Index      = int64(probe_stream.Index)
+      video_stream.Codec      = probe_stream.CodecName
+      video_stream.Width      = int64(probe_stream.Width)
+      video_stream.Height     = int64(probe_stream.Height)
+      video_stream.Fps        = 0
+      video_stream.Channels   = 0
+      video_stream.Language   = ""
 
       r_fps := convertFpsString(probe_stream.RFrameRate)
       a_fps := convertFpsString(probe_stream.AvgFrameRate)
@@ -110,57 +110,52 @@ func processFile(path string) (skip_reason string) {
       if (r_fps == 0) && (a_fps  > 0) { video_stream.Fps = a_fps }
       if (r_fps  > 0) && (a_fps  > 0) { video_stream.Fps = int64(math.Min(float64(r_fps), float64(a_fps))) }
 
-      unproc.SourceStreams = append(unproc.SourceStreams, video_stream)
+      inp.SourceStreams = append(inp.SourceStreams, video_stream)
       video_stream_index = probe_stream.Index
       video_stream_count += 1
-      if (video_usable == false) && (probe_stream.CodecName == "h264") { video_usable = true }
     } else if probe_stream.CodecType == "audio" {
-      audio_stream := database.Stream{}
-      audio_stream.Type     = database.StreamTypeAudio
-      audio_stream.Index    = int64(probe_stream.Index)
-      audio_stream.Codec    = probe_stream.CodecName
-      audio_stream.Width    = 0
-      audio_stream.Height   = 0
-      audio_stream.Fps      = 0
-      audio_stream.Channels = int64(probe_stream.Channels)
-      audio_stream.Language = probe_stream.Tags.Language
+      audio_stream := database.FileStream{}
+      audio_stream.StreamType = database.FileStreamTypeAudio
+      audio_stream.Index      = int64(probe_stream.Index)
+      audio_stream.Codec      = probe_stream.CodecName
+      audio_stream.Width      = 0
+      audio_stream.Height     = 0
+      audio_stream.Fps        = 0
+      audio_stream.Channels   = int64(probe_stream.Channels)
+      audio_stream.Language   = probe_stream.Tags.Language
 
-      unproc.SourceStreams = append(unproc.SourceStreams, audio_stream)
+      inp.SourceStreams = append(inp.SourceStreams, audio_stream)
       audio_stream_index = probe_stream.Index
       audio_stream_count += 1
-      if (audio_usable == false) && (probe_stream.CodecName == "aac") && (probe_stream.Channels == 2) { audio_usable = true }
     } else if probe_stream.CodecType == "subtitle" {
-      subtitle_stream := database.Stream{}
-      subtitle_stream.Type     = database.StreamTypeSubtitle
-      subtitle_stream.Index    = int64(probe_stream.Index)
-      subtitle_stream.Codec    = probe_stream.CodecName
-      subtitle_stream.Width    = 0
-      subtitle_stream.Height   = 0
-      subtitle_stream.Fps      = 0
-      subtitle_stream.Channels = 0
-      subtitle_stream.Language = probe_stream.Tags.Language
+      subtitle_stream := database.FileStream{}
+      subtitle_stream.StreamType = database.FileStreamTypeSubtitle
+      subtitle_stream.Index      = int64(probe_stream.Index)
+      subtitle_stream.Codec      = probe_stream.CodecName
+      subtitle_stream.Width      = 0
+      subtitle_stream.Height     = 0
+      subtitle_stream.Fps        = 0
+      subtitle_stream.Channels   = 0
+      subtitle_stream.Language   = probe_stream.Tags.Language
 
-      unproc.SourceStreams = append(unproc.SourceStreams, subtitle_stream)
+      inp.SourceStreams = append(inp.SourceStreams, subtitle_stream)
       subtitle_stream_index = probe_stream.Index
       subtitle_stream_count += 1
-      if (subtitle_usable == false) && (probe_stream.CodecName == "mov_text") { subtitle_usable = true }
     }
   }
 
-  if (video_stream_count == 0) && (audio_stream_count == 0) { fmt.Printf("No streams found: %s\n", path); return } // TODO: report skips
-  if (video_stream_count    > 1) || (audio_stream_count > 1) || (subtitle_stream_count > 1) { unproc.NeedsStreamMap = true }
-  if (video_stream_count    > 0) && (video_usable    == false) { unproc.NeedsTranscoding = true }
-  if (audio_stream_count    > 0) && (audio_usable    == false) { unproc.NeedsTranscoding = true }
-  if (subtitle_stream_count > 0) && (subtitle_usable == false) { unproc.NeedsTranscoding = true }
-  if (unproc.SourceContainer != "QuickTime / MOV") { unproc.NeedsTranscoding = true }
+  if (video_stream_count == 0) && (audio_stream_count == 0) { return "no streams found" }
 
-  if unproc.NeedsStreamMap == false {
-    if video_stream_count    == 1 { unproc.TranscodedStreams = append(unproc.TranscodedStreams, int64(video_stream_index))    }
-    if audio_stream_count    == 1 { unproc.TranscodedStreams = append(unproc.TranscodedStreams, int64(audio_stream_index))    }
-    if subtitle_stream_count == 1 { unproc.TranscodedStreams = append(unproc.TranscodedStreams, int64(subtitle_stream_index)) }
+  // auto-map, for simple cases
+  if (video_stream_count < 2) && (audio_stream_count < 2) && (subtitle_stream_count < 2) {
+    stream_map := []int64 {}
+    if (video_stream_count    == 1) { stream_map = append(stream_map, int64(video_stream_index   )) }
+    if (audio_stream_count    == 1) { stream_map = append(stream_map, int64(audio_stream_index   )) }
+    if (subtitle_stream_count == 1) { stream_map = append(stream_map, int64(subtitle_stream_index)) }
+    inp.StreamMap = stream_map
   }
 
-  err = unproc.Create(DB)
+  err = inp.Create(DB)
   if err != nil {
     println(err.Error())
     return "database-error"

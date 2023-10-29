@@ -29,8 +29,6 @@ func startupMigration(target string) (exit_code int) {
     return -1
   }
 
-  // TODO: ensure we have at least on admin user
-
   fmt.Printf("Migrated database to \"%s\"...\n", target)
   return 0
 }
@@ -59,7 +57,7 @@ func startupProperties() {
     JWTKEY = key_bytes
   }
 
-  // cache media & poster paths
-  media_path, err  := database.PropertyRead(DB, "mediapath")  ; if err == nil { MEDIAPATH  = media_path  }
-  poster_path, err := database.PropertyRead(DB, "posterpath") ; if err == nil { POSTERPATH = poster_path }
+  // cache media path
+  media_path, err  := database.PropertyRead(DB, "mediapath")
+  if err == nil { MEDIAPATH  = media_path  }
 }
