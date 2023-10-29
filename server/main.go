@@ -40,6 +40,7 @@ func main() {
 
   // startup server, and register routes
   server := fiber.New()
+  server.Static("/web", "./../web")
   startupMediaRoutes(server)
   startupClientRoutes(server)
   startupAdminRoutes(server)

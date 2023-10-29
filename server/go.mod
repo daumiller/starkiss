@@ -5,8 +5,7 @@ go 1.21.1
 require (
 	github.com/daumiller/starkiss/database v0.0.0
 	github.com/gofiber/fiber/v2 v2.50.0
-	github.com/vansante/go-ffprobe v1.1.0
-	github.com/yargevad/filepathx v1.0.0
+	github.com/ryanbradynd05/go-tmdb v0.0.0-20230108222638-2a68dc6ff40c
 )
 
 replace github.com/daumiller/starkiss/database => ./../database
@@ -17,6 +16,7 @@ require (
 	github.com/google/uuid v1.3.1 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/klauspost/compress v1.16.7 // indirect
+	github.com/kylelemons/go-gypsy v1.0.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
@@ -29,6 +29,7 @@ require (
 	golang.org/x/sys v0.13.0 // indirect
 	golang.org/x/tools v0.0.0-20201124115921-2c860bdd6e78 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
+	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	lukechampine.com/uint128 v1.2.0 // indirect
 	modernc.org/cc/v3 v3.40.0 // indirect
 	modernc.org/ccgo/v3 v3.16.13 // indirect

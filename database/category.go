@@ -89,6 +89,11 @@ func (cat_a *Category) FieldsDifference(other Table) (diff map[string]any, err e
 }
 
 func (cat *Category) ValidCreate(db *sql.DB) (valid bool, err error) {
+  // ensure a valid type
+  switch cat.Type {
+    case CategoryTypeMovie, CategoryTypeSeries, CategoryTypeMusic: break
+    default: return false, nil
+  }
   return true, nil
 }
 
@@ -201,11 +206,6 @@ func categoryIsEmpty(db *sql.DB, id string) (empty bool, err error) {
   row := db.QueryRow(`SELECT id FROM metadata WHERE category_id = ? LIMIT 1;`, id)
   err = row.Scan(&dummy)
   any_rows := (err != sql.ErrNoRows)
-  if any_rows { return false, nil }
-
-  row = db.QueryRow(`SELECT id FROM provisional WHERE category_id = ? LIMIT 1;`, id)
-  err = row.Scan(&dummy)
-  any_rows = (err != sql.ErrNoRows)
   if any_rows { return false, nil }
 
   return true, nil

@@ -86,7 +86,7 @@ func processFile(path string) (skip_reason string) {
   unproc.TranscodedLocation = ""
   unproc.TranscodedStreams  = []int64 {}
   unproc.MatchData          = ""
-  unproc.ProvisionalId      = ""
+  unproc.MetadataId         = ""
   unproc.CreatedAt          = time.Now().Unix()
 
   video_usable    := false ; video_stream_count    := 0 ; video_stream_index    := 0

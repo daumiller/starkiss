@@ -26,11 +26,9 @@ type TranscodingTask struct {
 func (tct *TranscodingTask) Create(db *sql.DB) (err error) {
   return TableCreate(db, tct)
 }
-
 func (tct *TranscodingTask) Update(db *sql.DB, new_values *TranscodingTask) (err error) {
   return TableUpdate(db, tct, new_values)
 }
-
 func (tct *TranscodingTask) Delete(db *sql.DB) (err error) {
   return TableDelete(db, tct)
 }
@@ -64,6 +62,20 @@ func TranscodingTaskNext(db *sql.DB) (tct *TranscodingTask, err error) {
   err = TableRead(db, tct, id)
   if err != nil { return nil, err }
   return tct, nil
+}
+
+func TranscodingTaskRead(db *sql.DB, id string) (tct TranscodingTask, err error) {
+  err = TableRead(db, &tct, id)
+  return tct, err
+}
+
+func TranscodingTaskList(db *sql.DB) (tct_list []TranscodingTask, err error) {
+  tables, err := TableWhere(db, &TranscodingTask{}, "")
+  if err != nil { return nil, err }
+
+  tct_list = make([]TranscodingTask, len(tables))
+  for index, table := range tables { tct_list[index] = *(table.(*TranscodingTask)) }
+  return tct_list, nil
 }
 
 // ============================================================================

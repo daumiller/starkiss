@@ -11,12 +11,11 @@ func (m *Migration0001) Up() (err error) {
   if err != nil { return err }
   defer Close(db)
 
-  err = createTableProperties(db)              ; if err != nil { return err }
-  err = createTableCategories(db)              ; if err != nil { return err }
-  err = createTableMetadata(db, "metadata")    ; if err != nil { return err }
-  err = createTableMetadata(db, "provisional") ; if err != nil { return err }
-  err = createTableUnprocessed(db)             ; if err != nil { return err }
-  err = createTableTranscodingTasks(db)        ; if err != nil { return err }
+  err = createTableProperties(db)       ; if err != nil { return err }
+  err = createTableCategories(db)       ; if err != nil { return err }
+  err = createTableMetadata(db)         ; if err != nil { return err }
+  err = createTableUnprocessed(db)      ; if err != nil { return err }
+  err = createTableTranscodingTasks(db) ; if err != nil { return err }
 
   return nil
 }
@@ -28,7 +27,6 @@ func (m *Migration0001) Down() (error) {
 
   _, err = db.Exec(`DROP TABLE transcoding_tasks;`) ; if err != nil { return err }
   _, err = db.Exec(`DROP TABLE unprocessed;`      ) ; if err != nil { return err }
-  _, err = db.Exec(`DROP TABLE provisional;`      ) ; if err != nil { return err }
   _, err = db.Exec(`DROP TABLE metadata;`         ) ; if err != nil { return err }
   _, err = db.Exec(`DROP TABLE categories;`       ) ; if err != nil { return err }
   _, err = db.Exec(`DROP TABLE properties;`       ) ; if err != nil { return err }
@@ -62,7 +60,7 @@ func createTableCategories(db *sql.DB) (err error) {
 }
 
 func createTableUnprocessed(db *sql.DB) (err error) {
-  // transcoded_location and provisional_id should be unique, but only once populated, so... not unique
+  // transcoded_location should be unique, but only once populated, so... not unique
   _, err = db.Exec(`CREATE TABLE unprocessed (
     id                  TEXT NOT NULL PRIMARY KEY UNIQUE,
     needs_stream_map    INTEGER NOT NULL,
@@ -75,7 +73,7 @@ func createTableUnprocessed(db *sql.DB) (err error) {
     transcoded_location TEXT NOT NULL,
     transcoded_streams  TEXT NOT NULL,
     match_data          TEXT NOT NULL,
-    provisional_id      TEXT NOT NULL,
+    metadata_id         TEXT NOT NULL,
     created_at          INTEGER NOT NULL
   );`)
   if err != nil { return err }
@@ -102,8 +100,8 @@ func createTableTranscodingTasks(db *sql.DB) (err error) {
   return err
 }
 
-func createTableMetadata(db *sql.DB, table_name string) (err error) {
-  _, err = db.Exec(`CREATE TABLE ` + table_name + ` (
+func createTableMetadata(db *sql.DB) (err error) {
+  _, err = db.Exec(`CREATE TABLE metadata (
     id                TEXT NOT NULL PRIMARY KEY UNIQUE,
     category_id       TEXT NOT NULL,
     category_type     TEXT NOT NULL,
@@ -128,11 +126,11 @@ func createTableMetadata(db *sql.DB, table_name string) (err error) {
   );`)
   if err != nil { return err }
 
-  _, err = db.Exec(`CREATE INDEX ` + table_name + `_parent   ON ` + table_name + ` (parent_id);    ` ) ; if err != nil { return err }
-  _, err = db.Exec(`CREATE INDEX ` + table_name + `_cat_type ON ` + table_name + ` (category_type);` ) ; if err != nil { return err }
-  _, err = db.Exec(`CREATE INDEX ` + table_name + `_type     ON ` + table_name + ` (type);         ` ) ; if err != nil { return err }
-  _, err = db.Exec(`CREATE INDEX ` + table_name + `_title    ON ` + table_name + ` (title_user);   ` ) ; if err != nil { return err }
-  _, err = db.Exec(`CREATE INDEX ` + table_name + `_genre    ON ` + table_name + ` (genre);        ` ) ; if err != nil { return err }
-  _, err = db.Exec(`CREATE INDEX ` + table_name + `_year     ON ` + table_name + ` (release_year); ` ) ; if err != nil { return err }
+  _, err = db.Exec(`CREATE INDEX metadata_parent   ON metadata (parent_id);    ` ) ; if err != nil { return err }
+  _, err = db.Exec(`CREATE INDEX metadata_cat_type ON metadata (category_type);` ) ; if err != nil { return err }
+  _, err = db.Exec(`CREATE INDEX metadata_type     ON metadata (type);         ` ) ; if err != nil { return err }
+  _, err = db.Exec(`CREATE INDEX metadata_title    ON metadata (title_user);   ` ) ; if err != nil { return err }
+  _, err = db.Exec(`CREATE INDEX metadata_genre    ON metadata (genre);        ` ) ; if err != nil { return err }
+  _, err = db.Exec(`CREATE INDEX metadata_year     ON metadata (release_year); ` ) ; if err != nil { return err }
   return nil
 }

@@ -14,6 +14,7 @@ func adminCategoryList(context *fiber.Ctx) error {
 func adminCategoryCreate(context *fiber.Ctx) error {
   category := database.Category{}
   if err := context.BodyParser(&category); err != nil { return context.SendStatus(400) }
+  category.Id = ""
   err := database.TableCreate(DB, &category)
   if err == database.ErrValidationFailed { return context.SendStatus(400) }
   if err != nil { return debug500(context, err) }

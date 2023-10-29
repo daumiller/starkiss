@@ -18,7 +18,7 @@ type Unprocessed struct {
   TranscodedLocation string      `json:"transcoded_location"`
   TranscodedStreams  []int64     `json:"transcoded_streams"` // this lists indices of source streams
   MatchData          string      `json:"match_data"`         // JSON match data
-  ProvisionalId      string      `json:"provisional_id"`
+  MetadataId         string      `json:"metadata_id"`
   CreatedAt          int64       `json:"created_at"`
 }
 
@@ -51,7 +51,7 @@ func (unp *Unprocessed) Copy() (copy *Unprocessed) {
   copy.TranscodedStreams  = make([]int64, len(unp.TranscodedStreams))
   for index, value := range unp.TranscodedStreams { copy.TranscodedStreams[index] = value }
   copy.MatchData          = unp.MatchData
-  copy.ProvisionalId      = unp.ProvisionalId
+  copy.MetadataId         = unp.MetadataId
   copy.CreatedAt          = unp.CreatedAt
   return copy
 }
@@ -110,7 +110,7 @@ func (unp *Unprocessed) FieldsRead() (fields map[string]any, err error) {
   fields["transcoded_location"] = unp.TranscodedLocation
   fields["transcoded_streams"]  = transcoded_streams
   fields["match_data"]          = unp.MatchData
-  fields["provisional_id"]      = unp.ProvisionalId
+  fields["metadata_id"]         = unp.MetadataId
   fields["created_at"]          = unp.CreatedAt
 
   return fields, nil
@@ -134,7 +134,7 @@ func (unp *Unprocessed) FieldsWrite(fields map[string]any) (err error) {
   unp.TranscodedLocation  = fields["transcoded_location"].(string)
   unp.TranscodedStreams   = transcoded_streams
   unp.MatchData           = fields["match_data"].(string)
-  unp.ProvisionalId       = fields["provisional_id"].(string)
+  unp.MetadataId          = fields["metadata_id"].(string)
   unp.CreatedAt           = fields["created_at"].(int64)
 
   return nil
@@ -164,7 +164,7 @@ func (unp_a *Unprocessed) FieldsDifference(other Table) (diff map[string]any, er
   if b_source_streams         != a_source_streams         { diff["source_streams"]      = b_source_streams         }
   if b_transcoded_streams     != a_transcoded_streams     { diff["transcoded_streams"]  = b_transcoded_streams     }
   if unp_b.MatchData          != unp_a.MatchData          { diff["match_data"]          = unp_b.MatchData          }
-  if unp_b.ProvisionalId      != unp_a.ProvisionalId      { diff["provisional_id"]      = unp_b.ProvisionalId      }
+  if unp_b.MetadataId         != unp_a.MetadataId         { diff["metadata_id"]         = unp_b.MetadataId         }
   if unp_b.CreatedAt          != unp_a.CreatedAt          { diff["created_at"]          = unp_b.CreatedAt          }
 
   return diff, nil
