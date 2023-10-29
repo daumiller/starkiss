@@ -81,9 +81,10 @@ func (md *Metadata) Copy() (*Metadata) {
   return &copy
 }
 
-func (md *Metadata) Create(db *sql.DB) (err error) { return TableCreate(db, md) }
-func (md *Metadata) Update(db *sql.DB, new_values *Metadata) (err error) { return TableUpdate(db, md, new_values) }
-func (md *Metadata) Delete(db *sql.DB) (err error) { return TableDelete(db, md) }
+func (md *Metadata) Create (db *sql.DB) (err error) { return TableCreate(db, md) }
+func (md *Metadata) Replace(db *sql.DB, new_values *Metadata) (err error) { return TableReplace(db, md, new_values) }
+func (md *Metadata) Patch  (db *sql.DB, new_values map[string]any) (err error) { return TablePatch(db, md, new_values) }
+func (md *Metadata) Delete (db *sql.DB) (err error) { return TableDelete(db, md) }
 
 func MetadataRead(db *sql.DB, id string) (md *Metadata, err error) { err = TableRead(db, md, id) ;  return md, err }
 func MetadataWhere(db *sql.DB, where_string string, where_args ...any) (md_list []Metadata, err error) {
@@ -108,7 +109,7 @@ func (md *Metadata) CopyRecord() (Table, error) {
 
 func (md *Metadata) CreateFrom(fields map[string]any) (instance Table, err error) {
   new_instance := Metadata {}
-  err = new_instance.FieldsWrite(fields)
+  err = new_instance.FieldsReplace(fields)
   if err != nil { return nil, err }
   return &new_instance, nil
 }
@@ -139,7 +140,7 @@ func (md *Metadata) FieldsRead() (fields map[string]any, err error) {
   return fields, nil
 }
 
-func (md *Metadata) FieldsWrite(fields map[string]any) (err error) {
+func (md *Metadata) FieldsReplace(fields map[string]any) (err error) {
   hidden := fields["hidden"].(int64) == 1
   streams_string := fields["streams"].(string) ; var streams []FileStream ; err = json.Unmarshal([]byte(streams_string), &streams) ; if err != nil { return err }
 
@@ -153,6 +154,31 @@ func (md *Metadata) FieldsWrite(fields map[string]any) (err error) {
   md.Duration         = fields["duration"         ].(int64)
   md.Size             = fields["size"             ].(int64)
   md.Hidden           = hidden
+
+  return nil
+}
+
+func (md *Metadata) FieldsPatch(fields map[string]any) (err error) {
+  if id,           ok := fields["id"]           ; ok { md.Id          = id.(string)                    }
+  if category_id,  ok := fields["category_id"]  ; ok { md.CategoryId  = category_id.(string)           }
+  if parent_id,    ok := fields["parent_id"]    ; ok { md.ParentId    = parent_id.(string)             }
+  if media_type,   ok := fields["media_type"]   ; ok { md.MediaType   = media_type.(MetadataMediaType) }
+  if name_display, ok := fields["name_display"] ; ok { md.NameDisplay = name_display.(string)          }
+  if name_sort,    ok := fields["name_sort"]    ; ok { md.NameSort    = name_sort.(string)             }
+  if duration,     ok := fields["duration"]     ; ok { md.Duration    = duration.(int64)               }
+  if size,         ok := fields["size"]         ; ok { md.Size        = size.(int64)                   }
+
+  if streams, ok := fields["streams"] ; ok {
+    streams_string := streams.(string)
+    var streams []FileStream
+    err = json.Unmarshal([]byte(streams_string), &streams)
+    if err != nil { return err }
+    md.Streams = streams
+  }
+
+  if hidden, ok := fields["hidden"] ; ok {
+    md.Hidden = (hidden.(int64) == 1)
+  }
 
   return nil
 }
@@ -189,5 +215,6 @@ func (md *Metadata) ValidUpdate(db *sql.DB, other Table) (valid bool, err error)
 }
 
 func (md *Metadata) ValidDelete(db *sql.DB) (valid bool, err error) {
+  // TODO: ensure no children
   return true, nil
 }

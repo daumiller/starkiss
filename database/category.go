@@ -32,14 +32,8 @@ func (cat *Category) Copy() (*Category) {
 func (cat *Category) Create(db *sql.DB) (err error) { return TableCreate(db, cat) }
 func (cat *Category) Delete(db *sql.DB) (err error) { return TableDelete(db, cat) }
 
-func (cat *Category) Rename(db *sql.DB, new_name string) (err error) {
-  cat_proposed := Category{ Id:cat.Id, MediaType:cat.MediaType, Name: new_name }
-  return TableUpdate(db, cat, &cat_proposed)
-}
-
-func (cat *Category) SetType(db *sql.DB, new_type CategoryMediaType) (err error) {
-  cat_proposed := Category{ Id:cat.Id, Name:cat.Name, MediaType:new_type }
-  return TableUpdate(db, cat, &cat_proposed)
+func (cat *Category) Update(db *sql.DB, new_name string, new_type CategoryMediaType) (err error) {
+  return TablePatch(db, cat, map[string]any { "name":new_name, "media_type":new_type })
 }
 
 func CategoryRead(db *sql.DB, id string) (cat *Category, err error) {
@@ -67,7 +61,7 @@ func (cat *Category) CopyRecord() (Table, error) {
 
 func (cat *Category) CreateFrom(fields map[string]any) (instance Table, err error) {
   new_instance := Category {}
-  err = new_instance.FieldsWrite(fields)
+  err = new_instance.FieldsReplace(fields)
   if err != nil { return nil, err }
   return &new_instance, nil
 }
@@ -80,10 +74,17 @@ func (cat *Category) FieldsRead() (fields map[string]any, err error) {
   return fields, nil
 }
 
-func (cat *Category) FieldsWrite(fields map[string]any) (err error) {
+func (cat *Category) FieldsReplace(fields map[string]any) (err error) {
   cat.Id        = fields["id"].(string)
   cat.MediaType = CategoryMediaType(fields["media_type"].(string))
   cat.Name      = fields["name"].(string)
+  return nil
+}
+
+func (cat *Category) FieldsPatch(fields map[string]any) (err error) {
+  if id,         ok := fields["id"]         ; ok { cat.Id        = id.(string)                            }
+  if media_type, ok := fields["media_type"] ; ok { cat.MediaType = CategoryMediaType(media_type.(string)) }
+  if name,       ok := fields["name"]       ; ok { cat.Name      = name.(string)                          }
   return nil
 }
 

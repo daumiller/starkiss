@@ -1,6 +1,7 @@
 package database
 
 import (
+  "os"
   "encoding/json"
   "database/sql"
 )
@@ -43,9 +44,15 @@ func (inp *InputFile) Copy() (*InputFile) {
   return &copy
 }
 
-func (inp *InputFile) Create(db *sql.DB) (err error) { return TableCreate(db, inp) }
-func (inp *InputFile) Update(db *sql.DB, new_values *InputFile) (err error) { return TableUpdate(db, inp, new_values) }
-func (inp *InputFile) Delete(db *sql.DB) (err error) { return TableDelete(db, inp) }
+func (inp *InputFile) Create (db *sql.DB) (err error) { return TableCreate(db, inp) }
+func (inp *InputFile) Replace(db *sql.DB, new_values *InputFile) (err error) { return TableReplace(db, inp, new_values) }
+func (inp *InputFile) Patch  (db *sql.DB, new_values map[string]any) (err error) { return TablePatch(db, inp, new_values) }
+func (inp *InputFile) Delete (db *sql.DB) (err error) { return TableDelete(db, inp) }
+
+func (inp *InputFile) DeleteTranscodedFile() (err error) {
+  if inp.TranscodedLocation == "" { return nil }
+  return os.Remove(inp.TranscodedLocation)
+}
 
 func InputFileRead(db *sql.DB, id string) (inp *InputFile, err error) { err = TableRead(db, inp, id) ;  return inp, err }
 func InputFileWhere(db *sql.DB, where_string string, where_args ...any) (inp_list []InputFile, err error) {
@@ -70,7 +77,7 @@ func (inp *InputFile) CopyRecord() (Table, error) {
 
 func (inp *InputFile) CreateFrom(fields map[string]any) (instance Table, err error) {
   new_instance := InputFile {}
-  err = new_instance.FieldsWrite(fields)
+  err = new_instance.FieldsReplace(fields)
   if err != nil { return nil, err }
   return &new_instance, nil
 }
@@ -95,7 +102,7 @@ func (inp *InputFile) FieldsRead() (fields map[string]any, err error) {
   return fields, nil
 }
 
-func (inp *InputFile) FieldsWrite(fields map[string]any) (err error) {
+func (inp *InputFile) FieldsReplace(fields map[string]any) (err error) {
   streams_string := fields["streams"].(string) ; var source_streams []FileStream ; err = json.Unmarshal([]byte(streams_string), &source_streams) ; if err != nil { return err }
   map_string := fields["stream_map"].(string) ; var stream_map []int64 ; err = json.Unmarshal([]byte(map_string), &stream_map) ; if err != nil { return err }
 
@@ -110,6 +117,30 @@ func (inp *InputFile) FieldsWrite(fields map[string]any) (err error) {
   inp.TranscodingTimeStarted = fields["transcoding_time_started"].(int64)
   inp.TranscodingTimeElapsed = fields["transcoding_time_elapsed"].(int64)
   inp.TranscodingError       = fields["transcoding_error"].(string)
+  return nil
+}
+
+func (inp *InputFile) FieldsPatch(fields map[string]any) (err error) {
+  if id,                       ok := fields["id"]                       ; ok { inp.Id                     = id.(string)                      }
+  if source_location,          ok := fields["source_location"]          ; ok { inp.SourceLocation         = source_location.(string)         }
+  if transcoded_location,      ok := fields["transcoded_location"]      ; ok { inp.TranscodedLocation     = transcoded_location.(string)     }
+  if source_duration,          ok := fields["source_duration"]          ; ok { inp.SourceDuration         = source_duration.(int64)          }
+  if time_scanned,             ok := fields["time_scanned"]             ; ok { inp.TimeScanned            = time_scanned.(int64)             }
+  if transcoding_command,      ok := fields["transcoding_command"]      ; ok { inp.TranscodingCommand     = transcoding_command.(string)     }
+  if transcoding_time_started, ok := fields["transcoding_time_started"] ; ok { inp.TranscodingTimeStarted = transcoding_time_started.(int64) }
+  if transcoding_time_elapsed, ok := fields["transcoding_time_elapsed"] ; ok { inp.TranscodingTimeElapsed = transcoding_time_elapsed.(int64) }
+  if transcoding_error,        ok := fields["transcoding_error"]        ; ok { inp.TranscodingError       = transcoding_error.(string)       }
+
+  if source_streams, ok := fields["source_streams"] ; ok {
+    streams_string := source_streams.(string) ; var source_streams []FileStream ; err = json.Unmarshal([]byte(streams_string), &source_streams) ; if err != nil { return err }
+    inp.SourceStreams = source_streams
+  }
+
+  if stream_map, ok := fields["stream_map"] ; ok {
+    map_string := stream_map.(string) ; var stream_map []int64 ; err = json.Unmarshal([]byte(map_string), &stream_map) ; if err != nil { return err }
+    inp.StreamMap = stream_map
+  }
+
   return nil
 }
 

@@ -161,7 +161,7 @@ func setReady(inp *database.InputFile, arguments []string) {
   inp_update.TranscodingTimeStarted = time.Now().Unix()
   inp_update.TranscodedLocation     = filepath.Join(TRANSPATH, inp.Id + ".mp4")
   inp_update.TranscodingCommand     = "ffmpeg " + strings.Join(arguments, " ")
-  err := inp.Update(DB, inp_update)
+  err := inp.Replace(DB, inp_update)
   if err != nil { fmt.Printf("Error updating input file: %s\n", err.Error()) ; os.Exit(-1) }
 }
 
@@ -170,7 +170,7 @@ func setFailed(inp *database.InputFile, message string) {
   inp_update := inp.Copy()
   inp_update.TranscodingError = message
   inp_update.TranscodingTimeElapsed = time.Now().Unix() - inp.TranscodingTimeStarted
-  err := inp.Update(DB, inp_update)
+  err := inp.Replace(DB, inp_update)
   if err != nil { fmt.Printf("Error updating failed transcoding task: %s\n", err.Error()) ; os.Exit(-1) }
 }
 
@@ -222,6 +222,6 @@ func runTask(inp *database.InputFile) {
   inp_update := inp.Copy()
   inp_update.TranscodingError = ""
   inp_update.TranscodingTimeElapsed = time.Now().Unix() - inp.TranscodingTimeStarted
-  err = inp.Update(DB, inp_update)
+  err = inp.Replace(DB, inp_update)
   if err != nil { setFailed(inp, fmt.Sprintf("Error updating unprocessed entry: %s\n", err.Error())) ; return }
 }

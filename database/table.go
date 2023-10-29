@@ -14,11 +14,12 @@ type Table interface {
   TableName() string                                              // name of the table
   GetId() string                                                  // get the id
   SetId(id string)                                                // set the id
-  CreateFrom(fields map[string]any) (instance Table, err error)   // create from field:values
-  CopyRecord() (instance Table, err error)                        // not strictly necessary, but enforced for usefulness
+  CreateFrom(fields map[string]any) (instance Table, err error)   // create from full set of field:values
+  CopyRecord() (instance Table, err error)                        // create a copy of a record
 
   FieldsRead() (fields map[string]any, err error)                 // read field:values from struct
-  FieldsWrite(fields map[string]any) (err error)                  // write field:values to struct
+  FieldsReplace(fields map[string]any) (err error)                // write full set of field:values to struct
+  FieldsPatch(fields map[string]any) (err error)                  // write partial set of field:values to struct
   FieldsDifference(other Table) (diff map[string]any, err error)  // compare field:values
 
   ValidCreate(db *sql.DB) (valid bool, err error)                 // is this a valid create?
@@ -70,7 +71,7 @@ func TableDelete(db *sql.DB, table Table) (err error) {
   return nil
 }
 
-func TableUpdate(db *sql.DB, current Table, proposed Table) (err error) {
+func TableReplace(db *sql.DB, current Table, proposed Table) (err error) {
   valid, err := current.ValidUpdate(db, proposed)
   if err != nil { return err }
   if valid == false { return ErrValidationFailed }
@@ -96,7 +97,36 @@ func TableUpdate(db *sql.DB, current Table, proposed Table) (err error) {
   if err != nil { return err }
   if count != 1 { return ErrQueryFailed }
 
-  current.FieldsWrite(difference)
+  current.FieldsPatch(difference)
+  return nil
+}
+
+func TablePatch(db *sql.DB, current Table, patch map[string]any) (err error) {
+  if len(patch) == 0 { return nil }
+
+  proposed, err := current.CopyRecord()
+  if err != nil { return err }
+  proposed.FieldsPatch(patch)
+  valid, err := current.ValidUpdate(db, proposed)
+  if err != nil { return err }
+  if valid == false { return ErrValidationFailed }
+
+  columns := []string {}
+  values  := []any {}
+  for column, value := range patch {
+    columns = append(columns, fmt.Sprintf("%s = ?", column))
+    values  = append(values, value)
+  }
+  values = append(values, current.GetId())
+
+  query_string := fmt.Sprintf(`UPDATE %s SET %s WHERE id = ?;`, current.TableName(), strings.Join(columns, ", "))
+  result, err := db.Exec(query_string, values...)
+  if err != nil { return err }
+  count, err := result.RowsAffected()
+  if err != nil { return err }
+  if count != 1 { return ErrQueryFailed }
+
+  current.FieldsPatch(patch)
   return nil
 }
 
@@ -120,7 +150,7 @@ func TableRead(db *sql.DB, table Table, id string) (err error) {
   if err != nil { return err }
 
   for index := range values { fields[columns[index]] = values[index] }
-  return table.FieldsWrite(fields)
+  return table.FieldsReplace(fields)
 }
 
 func TableWhere(db *sql.DB, table Table, where_string string, where_values ...any) (results []Table, err error) {
