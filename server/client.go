@@ -45,28 +45,20 @@ type ClientListingEntry struct {
 type ClientListing struct {
   Id           string               `json:"id"`
   Name         string               `json:"name"`
-  CategoryId   string               `json:"category_id"`
-  CategoryType string               `json:"category_type"`
-  CategoryName string               `json:"category_name"`
   ParentId     string               `json:"parent_id"`
-  ParentName   string               `json:"parent_name"`
   PosterRatio  ClientPosterRatio    `json:"poster_ratio"`
   EntryCount   int                  `json:"entry_count"`
   Entries      []ClientListingEntry `json:"entries"`
 }
 
 func clientServeListing_Category(context *fiber.Ctx, cat *database.Category) error {
-  metadata, err := database.MetadataWhere(DB, "(parent_id = ?) AND (category_id = ?) AND (hidden = ?)", "", cat.Id, 0)
+  metadata, err := database.MetadataWhere(DB, "(parent_id = ?) AND (hidden = ?)", cat.Id, 0)
   if err != nil { return debug500(context, err) }
 
   var listing ClientListing
   listing.Id           = cat.Id
   listing.Name         = cat.Name
-  listing.CategoryId   = cat.Id
-  listing.CategoryType = string(cat.MediaType)
-  listing.CategoryName = cat.Name
   listing.ParentId     = ""
-  listing.ParentName   = ""
   listing.PosterRatio  = ClientPosterRatio1x1
   listing.EntryCount   = len(metadata)
   listing.Entries      = make([]ClientListingEntry, listing.EntryCount)
@@ -92,34 +84,23 @@ func clientServeListing_Category(context *fiber.Ctx, cat *database.Category) err
 }
 
 func clientServeListing_Metadata(context *fiber.Ctx, md *database.Metadata) error {
-  category, err := database.CategoryRead(DB, md.CategoryId)
-  if err == database.ErrNotFound { return context.SendStatus(404) } // TODO: report that this record is invalid, rather than not found
-  if err != nil { return debug500(context, err) }
-
-  parent, err := database.MetadataRead(DB, md.ParentId)
-  if err == database.ErrNotFound { return context.SendStatus(404) } // TODO: report that this record is invalid, rather than not found
-  if err != nil { return debug500(context, err) }
-
   children, err := database.MetadataWhere(DB, "(parent_id = ?) AND (hidden = ?)", md.Id, 0)
   if err != nil { return debug500(context, err) }
 
   var listing ClientListing
   listing.Id           = md.Id
   listing.Name         = md.NameDisplay
-  listing.CategoryId   = category.Id
-  listing.CategoryType = string(category.MediaType)
-  listing.CategoryName = category.Name
-  listing.ParentId     = parent.ParentId
-  listing.ParentName   = parent.NameDisplay
+  listing.ParentId     = md.ParentId
   listing.PosterRatio  = ClientPosterRatio1x1
   listing.EntryCount   = len(children)
   listing.Entries      = make([]ClientListingEntry, listing.EntryCount)
 
   scan_series_seasons := false
-  switch category.MediaType {
-    case database.CategoryMediaTypeMovie: listing.PosterRatio = ClientPosterRatio2x3
-    case database.CategoryMediaTypeMusic: listing.PosterRatio = ClientPosterRatio1x1
-    case database.CategoryMediaTypeSeries:
+  switch md.MediaType {
+    case database.MetadataMediaTypeArtist: listing.PosterRatio = ClientPosterRatio1x1
+    case database.MetadataMediaTypeAlbum : listing.PosterRatio = ClientPosterRatio1x1
+    case database.MetadataMediaTypeSeason: listing.PosterRatio = ClientPosterRatio16x9
+    case database.MetadataMediaTypeSeries:
       listing.PosterRatio = ClientPosterRatio16x9
       scan_series_seasons = true
   }

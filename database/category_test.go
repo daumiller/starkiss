@@ -22,7 +22,7 @@ func prepTest(test *testing.T) (db *sql.DB, err error) {
   _, err = db.Exec(`CREATE UNIQUE INDEX categories_name ON categories (name);`) ; if err != nil { return nil, err }
   _, err = db.Exec(`CREATE INDEX categories_type ON categories (type);       `) ; if err != nil { return nil, err }
 
-  _, err = db.Exec(`CREATE TABLE metadata ( id TEXT NOT NULL PRIMARY KEY UNIQUE, category_id TEXT NOT NULL );`) ; if err != nil { return nil, err }
+  _, err = db.Exec(`CREATE TABLE metadata ( id TEXT NOT NULL PRIMARY KEY UNIQUE, parent_id TEXT NOT NULL );`) ; if err != nil { return nil, err }
 
   return db, nil
 }
@@ -84,7 +84,7 @@ func TestSetType(test *testing.T) {
   err = cat_with_metadata.Create(db)    ; if err != nil { test.Fatalf("TestSetType: Create failed: %s", err) }
   err = cat_with_none.Create(db)        ; if err != nil { test.Fatalf("TestSetType: Create failed: %s", err) }
 
-  _, err = db.Exec(`INSERT INTO metadata (id, category_id) VALUES ("test-metadata", ?);`, cat_with_metadata.Id)
+  _, err = db.Exec(`INSERT INTO metadata (id, parent_id) VALUES ("test-metadata", ?);`, cat_with_metadata.Id)
   if err != nil { test.Fatalf("TestSetType: INSERT INTO metadata failed: %s", err) }
 
   err = cat_with_metadata.Update(db, cat_with_metadata.Name, CategoryMediaTypeMusic)
@@ -111,7 +111,7 @@ func TestDelete(test *testing.T) {
   err = cat_with_metadata.Create(db)    ; if err != nil { test.Fatalf("TestDelete: Create failed: %s", err) }
   err = cat_with_none.Create(db)        ; if err != nil { test.Fatalf("TestDelete: Create failed: %s", err) }
 
-  _, err = db.Exec(`INSERT INTO metadata (id, category_id) VALUES ("test-metadata", ?);`, cat_with_metadata.Id)
+  _, err = db.Exec(`INSERT INTO metadata (id, parent_id) VALUES ("test-metadata", ?);`, cat_with_metadata.Id)
   if err != nil { test.Fatalf("TestDelete: INSERT INTO metadata failed: %s", err) }
 
   err = cat_with_metadata.Delete(db)

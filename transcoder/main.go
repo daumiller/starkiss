@@ -15,8 +15,8 @@ import (
 )
 
 var DB *sql.DB = nil
-var MEDIAPATH string = ""
-var TRANSPATH string = ""
+var MEDIA_PATH string = ""
+var TRANS_PATH string = ""
 
 func main() {
   // command line options
@@ -39,9 +39,9 @@ func main() {
     }
   }
   // transcoding destination path
-  if os.Getenv("TRANSPATH") != "" { TRANSPATH = os.Getenv("TRANSDIR") }
-  if TRANSPATH == "" {
-    fmt.Printf("Error: TRANSPATH environment variable not set.\n")
+  if os.Getenv("TRANS_PATH") != "" { TRANS_PATH = os.Getenv("TRANS_PATH") }
+  if TRANS_PATH == "" {
+    fmt.Printf("Error: TRANS_PATH environment variable not set.\n")
     os.Exit(-1)
   }
 
@@ -55,9 +55,9 @@ func main() {
   DB, err = database.Open()
   if err != nil { fmt.Printf("Error opening database: %s\n", err.Error()) ; os.Exit(-1) }
   defer DB.Close()
-  MEDIAPATH, err = database.PropertyRead(DB, "mediapath")
-  if err != nil { fmt.Printf("Error reading mediapath: %s\n", err.Error()) ; os.Exit(-1) }
-  if MEDIAPATH == "" { fmt.Printf("Error: media path not set in database.\n") ; os.Exit(-1) }
+  MEDIA_PATH, err = database.PropertyRead(DB, "media_path")
+  if err != nil { fmt.Printf("Error reading media_path: %s\n", err.Error()) ; os.Exit(-1) }
+  if MEDIA_PATH == "" { fmt.Printf("Error: media_path not set in database.\n") ; os.Exit(-1) }
 
   if stop {
     setStopValue()
@@ -73,10 +73,11 @@ func main() {
       inp := getTask()
       if inp == nil { fmt.Printf("Transcoder queue empty...\n") ; break }
       runTask(inp)
+      if getStopValue() != stop_value { break }
     }
     if continuous == false { break }
-    if getStopValue() != stop_value { break }
     time.Sleep(5 * time.Second)
+    if getStopValue() != stop_value { break }
   }
 }
 
@@ -95,7 +96,12 @@ func getTask() (inp *database.InputFile) {
   var err error
 
   // find InputFile where (TranscodedLocation = "") && (TranscodingTimeStarted = 0); if none, return nil
-  inp_row := DB.QueryRow(`SELECT id FROM input_files WHERE transcoded_location = '' AND transcoding_time_started = 0 LIMIT 1;`)
+  inp_row := DB.QueryRow(`
+    SELECT id FROM input_files WHERE
+      (transcoded_location = '') AND
+      (transcoding_time_started = 0) AND
+      (stream_map <> '[]')
+    LIMIT 1;`)
   var inp_id string = ""
   err = inp_row.Scan(&inp_id)
   if err == sql.ErrNoRows { return nil }
@@ -150,7 +156,7 @@ func getArguments(inp *database.InputFile) []string {
   }
 
   arguments = append(arguments,
-    "-y", inp.TranscodedLocation,
+    "-y", filepath.Join(TRANS_PATH, inp.Id + ".mp4"),
   )
 
   return arguments
@@ -159,7 +165,7 @@ func getArguments(inp *database.InputFile) []string {
 func setReady(inp *database.InputFile, arguments []string) {
   inp_update := inp.Copy()
   inp_update.TranscodingTimeStarted = time.Now().Unix()
-  inp_update.TranscodedLocation     = filepath.Join(TRANSPATH, inp.Id + ".mp4")
+  inp_update.TranscodedLocation     = filepath.Join(TRANS_PATH, inp.Id + ".mp4")
   inp_update.TranscodingCommand     = "ffmpeg " + strings.Join(arguments, " ")
   err := inp.Replace(DB, inp_update)
   if err != nil { fmt.Printf("Error updating input file: %s\n", err.Error()) ; os.Exit(-1) }

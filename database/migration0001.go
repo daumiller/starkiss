@@ -60,7 +60,6 @@ func createTableCategories(db *sql.DB) (err error) {
 func createTableMetadata(db *sql.DB) (err error) {
   _, err = db.Exec(`CREATE TABLE metadata (
     id                TEXT NOT NULL PRIMARY KEY UNIQUE,
-    category_id       TEXT NOT NULL,
     parent_id         TEXT NOT NULL,
     media_type        TEXT NOT NULL,
     name_display      TEXT NOT NULL,
@@ -72,7 +71,6 @@ func createTableMetadata(db *sql.DB) (err error) {
   );`)
   if err != nil { return err }
 
-  _, err = db.Exec(`CREATE INDEX metadata_category     ON metadata (category_id);  ` ) ; if err != nil { return err }
   _, err = db.Exec(`CREATE INDEX metadata_parent       ON metadata (parent_id);    ` ) ; if err != nil { return err }
   _, err = db.Exec(`CREATE INDEX metadata_media_type   ON metadata (media_type);   ` ) ; if err != nil { return err }
   _, err = db.Exec(`CREATE INDEX metadata_name_display ON metadata (name_display); ` ) ; if err != nil { return err }

@@ -15,8 +15,8 @@ const (
 )
 type Category struct {
   Id        string            `json:"id"`
-  MediaType CategoryMediaType `json:"type"`
-  Name      string             `json:"name"`
+  MediaType CategoryMediaType `json:"media_type"`
+  Name      string            `json:"name"`
 }
 
 // ============================================================================
@@ -33,16 +33,17 @@ func (cat *Category) Create(db *sql.DB) (err error) { return TableCreate(db, cat
 func (cat *Category) Delete(db *sql.DB) (err error) { return TableDelete(db, cat) }
 
 func (cat *Category) Update(db *sql.DB, new_name string, new_type CategoryMediaType) (err error) {
-  return TablePatch(db, cat, map[string]any { "name":new_name, "media_type":new_type })
+  return TablePatch(db, cat, map[string]any { "name":new_name, "media_type":string(new_type) })
 }
 
 func CategoryRead(db *sql.DB, id string) (cat *Category, err error) {
+  cat = &Category{}
   err = TableRead(db, cat, id)
   return cat, err
 }
 
 func CategoryList(db *sql.DB) (cat_list []Category, err error) {
-  tables, err := TableWhere(db, &Category{}, "")
+  tables, err := TableWhere(db, &Category{}, "(id <> '') ORDER BY name ASC")
   if err != nil { return nil, err }
   cat_list = make([]Category, len(tables))
   for index, table := range tables { cat_list[index] = *(table.(*Category)) }
@@ -141,7 +142,7 @@ func (cat *Category) ValidDelete(db *sql.DB) (valid bool, err error) {
 func categoryIsEmpty(db *sql.DB, id string) (empty bool, err error) {
   var dummy string
 
-  row := db.QueryRow(`SELECT id FROM metadata WHERE category_id = ? LIMIT 1;`, id)
+  row := db.QueryRow(`SELECT id FROM metadata WHERE parent_id = ? LIMIT 1;`, id)
   err = row.Scan(&dummy)
   any_rows := (err != sql.ErrNoRows)
   if any_rows { return false, nil }

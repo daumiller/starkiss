@@ -22,7 +22,7 @@ func getMetadataPath(md *database.Metadata) (string, error) {
     components = append([]string { parent.NameSort }, components...)
     parent_id = parent.ParentId
   }
-  components = append([]string { MEDIAPATH }, components...)
+  components = append([]string { MEDIA_PATH }, components...)
   return path.Join(components...), nil
 }
 

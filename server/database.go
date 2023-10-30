@@ -58,6 +58,6 @@ func startupProperties() {
   }
 
   // cache media path
-  media_path, err  := database.PropertyRead(DB, "mediapath")
-  if err == nil { MEDIAPATH  = media_path  }
+  media_path, err  := database.PropertyRead(DB, "media_path")
+  if err == nil { MEDIA_PATH  = media_path  }
 }

@@ -6,15 +6,46 @@ import (
   "github.com/daumiller/starkiss/database"
 )
 
+/* Workflow:
+  1a. admin sets media_path, creates categories
+  1b. scanner creates input files
+  2.  admin views input files, creates missing stream maps
+  3.  transcoder gets media ready, stores in temporary location
+  4.  admin creates series/season, or artist/album metadata as needed
+  5.  admin creates file metadata (edit metadata from inputfile, which will edit or create records)
+  6.  admin completes input file, which moves transcode to final destination, marks metadata as not hidden, and deletes input file
+*/
+
+/* Admin web ui components:
+  - media path editor
+  - category editor
+  - input_file browser/editor
+    - can edit/assign stream_map
+    - can reset transcoding state (deleting any existing transcoded file)
+    - can delete input file (and transcoded file, if exists)
+    - can complete input file (validate transcoding & metadata, move file to final destination, remove input-file record)
+    - can launch metadata editor for corresponding metadata entry (creating as needed)
+  - metadata browser
+    - can find orphaned or hidden metadata
+    - can browser by category, through hierarchy, just like client would
+  - metadata editor, can edit series/season/artist/album/file
+    - can create new metadata records for input files
+    - can assign parent metadata (which also sets category)
+    - given file path, can copy, resize, and store posters
+    - LATER: given url, can download, resize, and store posters
+    - LATER: can search at tmdb/tvdb/audiodb, and import metadata
+*/
+
 func startupAdminRoutes(server *fiber.App) {
-  server.Get ("/admin/media-path", adminMediaPathRead  )
-  server.Post("/admin/media-path", adminMediaPathUpdate)
+  server.Get ("/admin/properties", adminPropertiesRead)
+  server.Post("/admin/properties", adminPropertiesUpdate)
 
   server.Get   ("/admin/categories",   adminCategoryList  )
   server.Post  ("/admin/category",     adminCategoryCreate)
   server.Post  ("/admin/category/:id", adminCategoryUpdate)
   server.Delete("/admin/category/:id", adminCategoryDelete)
 
+  server.Get   ("/admin/metadata/tree",                 adminMetadataTree        ) // list category > metadata > metadata hierarchy
   server.Get   ("/admin/metadata/by-parent/:parent_id", adminMetadataByParentList) // list all metadata for a parent
   server.Post  ("/admin/metadata",                      adminMetadataCreate      ) // create new metadata (defaults to hidden) (requires a parent id, optionally specify a input-file for read-or-create)
   server.Delete("/admin/metadata",                      adminMetadataDelete      ) // delete metadata record(s)
@@ -28,21 +59,28 @@ func startupAdminRoutes(server *fiber.App) {
 }
 
 // ============================================================================
-// MediaPath
+// Properties
 
-func adminMediaPathRead(context *fiber.Ctx) error {
-  return context.JSON(map[string]string { "media_path": MEDIAPATH })
-}
-func adminMediaPathUpdate(context *fiber.Ctx) error {
-  body_obj := map[string]string {}
-  err := context.BodyParser(&body_obj)
+var PROPERTIES_HIDDEN []string = []string { "jwtkey", "migration_level" }
+
+func adminPropertiesRead(context *fiber.Ctx) error {
+  properties, err := database.PropertyList(DB)
   if err != nil { return debug500(context, err) }
-  if _, ok := body_obj["media_path"]; ok == false { return context.Status(400).JSON(map[string]string { "error": "missing media_path" }) }
 
-  result := database.PropertyUpsert(DB, "mediapath", body_obj["media_path"])
-  if result != nil { return debug500(context, result) }
-  MEDIAPATH = body_obj["media_path"]
-  return context.JSON(map[string]string { "media_path": MEDIAPATH })
+  for _, key := range PROPERTIES_HIDDEN { delete(properties, key) }
+  return context.JSON(properties)
+}
+func adminPropertiesUpdate(context *fiber.Ctx) error {
+  updates := map[string]string {}
+  if err := context.BodyParser(&updates); err != nil { return context.SendStatus(400) }
+
+  for _, key := range PROPERTIES_HIDDEN { delete(updates, key) }
+  for key, value := range updates {
+    err := database.PropertyUpsert(DB, key, value)
+    if err != nil { return debug500(context, err) }
+    if key == "media_path" { MEDIA_PATH = value }
+  }
+  return context.SendStatus(200)
 }
 
 // ============================================================================
@@ -103,12 +141,55 @@ func isCategory(id string) bool {
   return true
 }
 
+type metadataTreeNode struct {
+  Id        string           `json:"id"`
+  Name      string           `json:"name"`
+  MediaType string           `json:"media_type"`
+  Children  []metadataTreeNode `json:"children"` // not a map because want this ordered
+}
+func adminMetadataTreeRecurse(root *metadataTreeNode) error {
+  rows, err := DB.Query(`SELECT id, name_display, media_type FROM metadata WHERE parent_id = ? ORDER BY name_sort;`, root.Id)
+  if err != nil { return err }
+  defer rows.Close()
+
+  for rows.Next() {
+    var id, name, media_type string
+    err = rows.Scan(&id, &name, &media_type)
+    if err != nil { return err }
+
+    if (media_type == "file-video") || (media_type == "file-audio") { continue }
+    child := metadataTreeNode { Id: id, Name: name, MediaType: media_type, Children: []metadataTreeNode{} }
+    err = adminMetadataTreeRecurse(&child)
+    if err != nil { return err }
+
+    root.Children = append(root.Children, child)
+  }
+
+  return nil
+}
+func adminMetadataTree(context *fiber.Ctx) error {
+  lost_items := metadataTreeNode { Id:"lost", Name:"Lost Items", MediaType:"", Children:[]metadataTreeNode{} }
+  err := adminMetadataTreeRecurse(&lost_items)
+  if err != nil { return debug500(context, err) }
+
+  categories, err := database.CategoryList(DB)
+  if err != nil { return debug500(context, err) }
+
+  root_items := make([]*metadataTreeNode, len(categories) + 1)
+  root_items[0] = &lost_items
+  for index, cat := range categories {
+    cat_tree := metadataTreeNode { Id:cat.Id, Name:cat.Name, MediaType:string(cat.MediaType), Children: []metadataTreeNode{} }
+    err = adminMetadataTreeRecurse(&cat_tree)
+    if err != nil { return debug500(context, err) }
+    root_items[index + 1] = &cat_tree
+  }
+
+  return context.JSON(root_items)
+}
+
 func adminMetadataByParentList(context *fiber.Ctx) error {
   parent_id := context.Params("parent_id")
-  where_string := `WHERE parent_id = ?`
-  if isCategory(parent_id) { where_string = `WHERE (parent_id = '') AND (category_id = ?)` }
-
-  metadata_list, err := database.MetadataWhere(DB, where_string, parent_id)
+  metadata_list, err := database.MetadataWhere(DB, `WHERE parent_id = ?`, parent_id)
   if err != nil { return debug500(context, err) }
   return context.JSON(metadata_list)
 }
@@ -258,7 +339,7 @@ func adminInputFileComplete(context *fiber.Ctx) error {
   _, err = database.MetadataRead(DB, inp.Id)
   if err == database.ErrNotFound { return context.Status(400).JSON(map[string]string{"error": "metadata not found"}) }
   // TODO: verify all metadata fields
-  // TODO: populate metadata record with new ffprobe of transcoded file
+  // TODO: populate metadata record with new ffprobe of transcoded file (and verify compatible)
 
   // TODO:
   // move transcoded file to final location

@@ -13,7 +13,7 @@ var DB         *sql.DB = nil     // global handle to database; initialized in ma
 var ADDRESS    string  = ":4331" // server binding address; can be overridden by environment variable
 var DEBUG      bool    = false   // debug mode; can be overridden by environment variable
 var JWTKEY     []byte  = nil     // JWT key; created or read from DB in propertiesMain()
-var MEDIAPATH  string = ""       // media path; read from DB in propertiesMain()
+var MEDIA_PATH string = ""       // media_path; read from DB in propertiesMain()
 
 // simple debug handler for 500s
 func debug500(context *fiber.Ctx, err error) error {
@@ -39,7 +39,7 @@ func main() {
 
   // startup server, and register routes
   server := fiber.New()
-  server.Static("/web", "./../web")
+  server.Static("/web-admin", "./../web-admin")
   startupMediaRoutes(server)
   startupClientRoutes(server)
   startupAdminRoutes(server)

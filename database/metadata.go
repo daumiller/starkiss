@@ -47,7 +47,6 @@ const (
 )
 type Metadata struct {
   Id          string            `json:"id"`
-  CategoryId  string            `json:"category_id"`
   ParentId    string            `json:"parent_id"`
   MediaType   MetadataMediaType `json:"media_type"`
   NameDisplay string            `json:"name_display"`
@@ -63,7 +62,6 @@ type Metadata struct {
 func (md *Metadata) Copy() (*Metadata) {
   copy := Metadata {}
   copy.Id          = md.Id
-  copy.CategoryId  = md.CategoryId
   copy.ParentId    = md.ParentId
   copy.MediaType   = md.MediaType
   copy.NameDisplay = md.NameDisplay
@@ -86,7 +84,11 @@ func (md *Metadata) Replace(db *sql.DB, new_values *Metadata) (err error) { retu
 func (md *Metadata) Patch  (db *sql.DB, new_values map[string]any) (err error) { return TablePatch(db, md, new_values) }
 func (md *Metadata) Delete (db *sql.DB) (err error) { return TableDelete(db, md) }
 
-func MetadataRead(db *sql.DB, id string) (md *Metadata, err error) { err = TableRead(db, md, id) ;  return md, err }
+func MetadataRead(db *sql.DB, id string) (md *Metadata, err error) {
+  md = &Metadata{}
+  err = TableRead(db, md, id)
+  return md, err
+}
 func MetadataWhere(db *sql.DB, where_string string, where_args ...any) (md_list []Metadata, err error) {
   tables, err := TableWhere(db, &Metadata{}, where_string, where_args...)
   if err != nil { return nil, err }
@@ -127,7 +129,6 @@ func (md *Metadata) FieldsRead() (fields map[string]any, err error) {
   streams_bytes, err := json.Marshal(md.Streams) ; if err != nil { return nil, err } ; streams_string := string(streams_bytes)
 
   fields["id"           ] = md.Id
-  fields["category_id"  ] = md.CategoryId
   fields["parent_id"    ] = md.ParentId
   fields["media_type"   ] = string(md.MediaType)
   fields["name_display" ] = md.NameDisplay
@@ -145,7 +146,6 @@ func (md *Metadata) FieldsReplace(fields map[string]any) (err error) {
   streams_string := fields["streams"].(string) ; var streams []FileStream ; err = json.Unmarshal([]byte(streams_string), &streams) ; if err != nil { return err }
 
   md.Id               = fields["id"               ].(string)
-  md.CategoryId       = fields["category_id"      ].(string)
   md.ParentId         = fields["parent_id"        ].(string)
   md.MediaType        = fields["media_type"       ].(MetadataMediaType)
   md.NameDisplay      = fields["name_display"     ].(string)
@@ -160,7 +160,6 @@ func (md *Metadata) FieldsReplace(fields map[string]any) (err error) {
 
 func (md *Metadata) FieldsPatch(fields map[string]any) (err error) {
   if id,           ok := fields["id"]           ; ok { md.Id          = id.(string)                    }
-  if category_id,  ok := fields["category_id"]  ; ok { md.CategoryId  = category_id.(string)           }
   if parent_id,    ok := fields["parent_id"]    ; ok { md.ParentId    = parent_id.(string)             }
   if media_type,   ok := fields["media_type"]   ; ok { md.MediaType   = media_type.(MetadataMediaType) }
   if name_display, ok := fields["name_display"] ; ok { md.NameDisplay = name_display.(string)          }
@@ -193,7 +192,6 @@ func (md_a *Metadata) FieldsDifference(other Table) (diff map[string]any, err er
   b_streams_bytes, err := json.Marshal(md_b.Streams) ; if err != nil { return nil, err } ; b_streams_string := string(b_streams_bytes)
 
   if md_a.Id          != md_b.Id          { diff["id"           ] = md_b.Id                }
-  if md_a.CategoryId  != md_b.CategoryId  { diff["category_id"  ] = md_b.CategoryId        }
   if md_a.ParentId    != md_b.ParentId    { diff["parent_id"    ] = md_b.ParentId          }
   if md_a.MediaType   != md_b.MediaType   { diff["media_type"   ] = string(md_b.MediaType) }
   if md_a.NameDisplay != md_b.NameDisplay { diff["name_display" ] = md_b.NameDisplay       }

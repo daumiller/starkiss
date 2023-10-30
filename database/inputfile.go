@@ -54,7 +54,11 @@ func (inp *InputFile) DeleteTranscodedFile() (err error) {
   return os.Remove(inp.TranscodedLocation)
 }
 
-func InputFileRead(db *sql.DB, id string) (inp *InputFile, err error) { err = TableRead(db, inp, id) ;  return inp, err }
+func InputFileRead(db *sql.DB, id string) (inp *InputFile, err error) {
+  inp = &InputFile{}
+  err = TableRead(db, inp, id)
+  return inp, err
+}
 func InputFileWhere(db *sql.DB, where_string string, where_args ...any) (inp_list []InputFile, err error) {
   tables, err := TableWhere(db, &InputFile{}, where_string, where_args...)
   if err != nil { return nil, err }
@@ -103,7 +107,7 @@ func (inp *InputFile) FieldsRead() (fields map[string]any, err error) {
 }
 
 func (inp *InputFile) FieldsReplace(fields map[string]any) (err error) {
-  streams_string := fields["streams"].(string) ; var source_streams []FileStream ; err = json.Unmarshal([]byte(streams_string), &source_streams) ; if err != nil { return err }
+  streams_string := fields["source_streams"].(string) ; var source_streams []FileStream ; err = json.Unmarshal([]byte(streams_string), &source_streams) ; if err != nil { return err }
   map_string := fields["stream_map"].(string) ; var stream_map []int64 ; err = json.Unmarshal([]byte(map_string), &stream_map) ; if err != nil { return err }
 
   inp.Id                     = fields["id"].(string)
