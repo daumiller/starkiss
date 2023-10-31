@@ -16,7 +16,7 @@
       "request": "launch",
       "mode": "debug",
       "program": "./scanner",
-      "args": ["/Volumes/Starkiss/import/Video/Animated Movies/**/*"],
+      "args": ["/Volumes/Starkiss/import/Music/Bjork/Debut/03 Venus As A Boy.mp3"],
       "env": { "CGO_ENABLED":"0", "GOOS":"darwin", "DBFILE":"/Users/darcy/dev/stark/starkiss.db", }
     },
     {

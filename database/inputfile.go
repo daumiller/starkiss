@@ -1,15 +1,13 @@
 package database
 
 import (
-  "os"
   "encoding/json"
   "database/sql"
 )
 
 type InputFile struct {
   Id                       string       `json:"id"`                        // Metadata.Id == InputFile.Id
-  SourceLocation           string       `json:"source_location"`
-  TranscodedLocation       string       `json:"transcoded_location"`       // empty == needs_transcoded
+  SourceLocation           string       `json:"source_location"`           // path to source file
   SourceStreams            []FileStream `json:"source_streams"`
   StreamMap                []int64      `json:"stream_map"`                // empty == needs_map
   SourceDuration           int64        `json:"source_duration"`           // length of media in seconds
@@ -24,7 +22,6 @@ func (inp *InputFile) Copy() (*InputFile) {
   copy := InputFile {}
   copy.Id                       = inp.Id
   copy.SourceLocation           = inp.SourceLocation
-  copy.TranscodedLocation       = inp.TranscodedLocation
   copy.SourceStreams            = make([]FileStream, len(inp.SourceStreams))
   copy.StreamMap                = make([]int64, len(inp.StreamMap))
   copy.SourceDuration           = inp.SourceDuration
@@ -44,15 +41,10 @@ func (inp *InputFile) Copy() (*InputFile) {
   return &copy
 }
 
-func (inp *InputFile) Create (db *sql.DB) (err error) { return TableCreate(db, inp) }
-func (inp *InputFile) Replace(db *sql.DB, new_values *InputFile) (err error) { return TableReplace(db, inp, new_values) }
-func (inp *InputFile) Patch  (db *sql.DB, new_values map[string]any) (err error) { return TablePatch(db, inp, new_values) }
-func (inp *InputFile) Delete (db *sql.DB) (err error) { return TableDelete(db, inp) }
-
-func (inp *InputFile) DeleteTranscodedFile() (err error) {
-  if inp.TranscodedLocation == "" { return nil }
-  return os.Remove(inp.TranscodedLocation)
-}
+func InputFileCreate (db *sql.DB, inp *InputFile)                            error { return TableCreate (db, inp) }
+func InputFileReplace(db *sql.DB, inp *InputFile, new_values *InputFile)     error { return TableReplace(db, inp, new_values) }
+func InputFilePatch  (db *sql.DB, inp *InputFile, new_values map[string]any) error { return TablePatch  (db, inp, new_values) }
+func InputFileDelete (db *sql.DB, inp *InputFile)                            error { return TableDelete (db, inp) }
 
 func InputFileRead(db *sql.DB, id string) (inp *InputFile, err error) {
   inp = &InputFile{}
@@ -66,6 +58,30 @@ func InputFileWhere(db *sql.DB, where_string string, where_args ...any) (inp_lis
   inp_list = make([]InputFile, len(tables))
   for index, table := range tables { inp_list[index] = *(table.(*InputFile)) }
   return inp_list, nil
+}
+
+func InputFileSourceExists(db *sql.DB, source_location string) (exists bool, err error) {
+  queryRow := db.QueryRow(`SELECT id FROM input_files WHERE source_location = ?;`, source_location)
+  var id string
+  err = queryRow.Scan(&id)
+  if (err != nil) && (err != sql.ErrNoRows) { return false, err }
+  return (err == nil), nil
+}
+
+func InputFileNextForTranscoding(db *sql.DB) (*InputFile, error) {
+  // find first InputFile ready for transcoding
+  inp_row := db.QueryRow(`
+    SELECT id FROM input_files WHERE
+      (transcoding_time_started = 0) AND
+      (stream_map <> '[]')
+    LIMIT 1;
+  `)
+  var inp_id string = ""
+  err := inp_row.Scan(&inp_id)
+  if err == sql.ErrNoRows { return nil, nil }
+  if err != nil { return nil, err }
+
+  return InputFileRead(db, inp_id)
 }
 
 // ============================================================================
@@ -93,7 +109,6 @@ func (inp *InputFile) FieldsRead() (fields map[string]any, err error) {
   fields = make(map[string]any)
   fields["id"]                       = inp.Id
   fields["source_location"]          = inp.SourceLocation
-  fields["transcoded_location"]      = inp.TranscodedLocation
   fields["source_streams"]           = streams_string
   fields["stream_map"]               = map_string
   fields["source_duration"]          = inp.SourceDuration
@@ -112,7 +127,6 @@ func (inp *InputFile) FieldsReplace(fields map[string]any) (err error) {
 
   inp.Id                     = fields["id"].(string)
   inp.SourceLocation         = fields["source_location"].(string)
-  inp.TranscodedLocation     = fields["transcoded_location"].(string)
   inp.SourceStreams          = source_streams
   inp.StreamMap              = stream_map
   inp.SourceDuration         = fields["source_duration"].(int64)
@@ -127,7 +141,6 @@ func (inp *InputFile) FieldsReplace(fields map[string]any) (err error) {
 func (inp *InputFile) FieldsPatch(fields map[string]any) (err error) {
   if id,                       ok := fields["id"]                       ; ok { inp.Id                     = id.(string)                      }
   if source_location,          ok := fields["source_location"]          ; ok { inp.SourceLocation         = source_location.(string)         }
-  if transcoded_location,      ok := fields["transcoded_location"]      ; ok { inp.TranscodedLocation     = transcoded_location.(string)     }
   if source_duration,          ok := fields["source_duration"]          ; ok { inp.SourceDuration         = source_duration.(int64)          }
   if time_scanned,             ok := fields["time_scanned"]             ; ok { inp.TimeScanned            = time_scanned.(int64)             }
   if transcoding_command,      ok := fields["transcoding_command"]      ; ok { inp.TranscodingCommand     = transcoding_command.(string)     }
@@ -160,7 +173,6 @@ func (inp_a *InputFile) FieldsDifference(other Table) (diff map[string]any, err 
 
   if inp_a.Id                       != inp_b.Id                       { diff["id"]                       = inp_b.Id                       }
   if inp_a.SourceLocation           != inp_b.SourceLocation           { diff["source_location"]          = inp_b.SourceLocation           }
-  if inp_a.TranscodedLocation       != inp_b.TranscodedLocation       { diff["transcoded_location"]      = inp_b.TranscodedLocation       }
   if a_streams_string               != b_streams_string               { diff["source_streams"]           = b_streams_string               }
   if a_map_string                   != b_map_string                   { diff["stream_map"]               = b_map_string                   }
   if inp_a.SourceDuration           != inp_b.SourceDuration           { diff["source_duration"]          = inp_b.SourceDuration           }

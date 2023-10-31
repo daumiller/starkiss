@@ -189,7 +189,8 @@ func adminMetadataTree(context *fiber.Ctx) error {
 
 func adminMetadataByParentList(context *fiber.Ctx) error {
   parent_id := context.Params("parent_id")
-  metadata_list, err := database.MetadataWhere(DB, `WHERE parent_id = ?`, parent_id)
+  if parent_id == "lost" { parent_id = "" }
+  metadata_list, err := database.MetadataWhere(DB, `parent_id = ?`, parent_id)
   if err != nil { return debug500(context, err) }
   return context.JSON(metadata_list)
 }

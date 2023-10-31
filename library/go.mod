@@ -1,15 +1,12 @@
-module github.com/daumiller/starkiss/scanner
-
-go 1.21.1
+module github.com/daumiller/starkiss/library
 
 replace github.com/daumiller/starkiss/database => ./../database
 
-replace github.com/daumiller/starkiss/library => ./../library
+go 1.21.1
 
 require (
 	github.com/daumiller/starkiss/database v0.0.0-00010101000000-000000000000
-	github.com/daumiller/starkiss/library v0.0.0-00010101000000-000000000000
-	github.com/yargevad/filepathx v1.0.0
+	github.com/mattn/go-sqlite3 v1.14.17
 )
 
 require (
@@ -18,7 +15,6 @@ require (
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	github.com/vansante/go-ffprobe v1.1.0 // indirect
 	golang.org/x/mod v0.3.0 // indirect
 	golang.org/x/sys v0.0.0-20220811171246-fbc7d0a398ab // indirect
 	golang.org/x/tools v0.0.0-20201124115921-2c860bdd6e78 // indirect

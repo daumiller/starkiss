@@ -1,11 +1,8 @@
 package database
 
 import (
-  "fmt"
   "database/sql"
 )
-
-var ErrCategoryNotEmpty = fmt.Errorf("category is not empty")
 
 type CategoryMediaType string
 const (
@@ -29,11 +26,19 @@ func (cat *Category) Copy() (*Category) {
   return &copy
 }
 
-func (cat *Category) Create(db *sql.DB) (err error) { return TableCreate(db, cat) }
-func (cat *Category) Delete(db *sql.DB) (err error) { return TableDelete(db, cat) }
+// specifically not adding DB functions to Category struct,
+// so Library can pass on Category objects without being (easily) bypassed for DB access
 
-func (cat *Category) Update(db *sql.DB, new_name string, new_type CategoryMediaType) (err error) {
+func CategoryCreate(db *sql.DB, cat *Category) error { return TableCreate(db, cat) }
+func CategoryDelete(db *sql.DB, cat *Category) error { return TableDelete(db, cat) }
+func CategoryUpdate(db *sql.DB, cat *Category, new_name string, new_type CategoryMediaType) error {
   return TablePatch(db, cat, map[string]any { "name":new_name, "media_type":string(new_type) })
+}
+
+func CategoryExistingId(db *sql.DB, id string) bool {
+  queryRow := db.QueryRow(`SELECT id FROM categories WHERE id = ?;`, id)
+  err := queryRow.Scan(&id)
+  return (err == nil)
 }
 
 func CategoryRead(db *sql.DB, id string) (cat *Category, err error) {
@@ -48,6 +53,36 @@ func CategoryList(db *sql.DB) (cat_list []Category, err error) {
   cat_list = make([]Category, len(tables))
   for index, table := range tables { cat_list[index] = *(table.(*Category)) }
   return cat_list, nil
+}
+
+func CategoryMediaTypeValidString(media_type string) bool {
+  cat_media_type := CategoryMediaType(media_type)
+  return CategoryMediaTypeValid(cat_media_type)
+}
+func CategoryMediaTypeValid(media_type CategoryMediaType) bool {
+  switch(media_type) {
+    case CategoryMediaTypeMovie  : fallthrough
+    case CategoryMediaTypeSeries : fallthrough
+    case CategoryMediaTypeMusic  : return true
+    default: return false
+  }
+}
+
+func CategoryNameExists(db *sql.DB, name string) (bool, error) {
+  queryRow := db.QueryRow(`SELECT id FROM categories WHERE name = ?;`, name)
+  var id string
+  err := queryRow.Scan(&id)
+  if (err != nil) && (err != sql.ErrNoRows) { return false, err }
+  return (err == nil), nil
+}
+
+func CategoryIsEmpty(db *sql.DB, id string) (bool, error) {
+  var dummy string
+
+  row := db.QueryRow(`SELECT id FROM metadata WHERE parent_id = ? LIMIT 1;`, id)
+  err := row.Scan(&dummy)
+  if (err != nil) && (err != sql.ErrNoRows) { return false, err }
+  return (err == sql.ErrNoRows), nil
 }
 
 // ============================================================================
@@ -103,10 +138,7 @@ func (cat_a *Category) FieldsDifference(other Table) (diff map[string]any, err e
 
 func (cat *Category) ValidCreate(db *sql.DB) (valid bool, err error) {
   // ensure a valid type
-  switch cat.MediaType {
-    case CategoryMediaTypeMovie, CategoryMediaTypeSeries, CategoryMediaTypeMusic: break
-    default: return false, nil
-  }
+  if CategoryMediaTypeValid(cat.MediaType) == false { return false, nil }
   return true, nil
 }
 
@@ -117,12 +149,9 @@ func (cat_a *Category) ValidUpdate(db *sql.DB, other Table) (valid bool, err err
   // only need to check for type changes
   if cat_a.MediaType == cat_b.MediaType { return true, nil }
   // first, ensure a valid type
-  switch cat_b.MediaType {
-    case CategoryMediaTypeMovie, CategoryMediaTypeSeries, CategoryMediaTypeMusic: break
-    default: return false, nil
-  }
+  if CategoryMediaTypeValid(cat_b.MediaType) == false { return false, nil }
   // then, only allow changing type if no items already assigned
-  empty, err := categoryIsEmpty(db, cat_a.Id)
+  empty, err := CategoryIsEmpty(db, cat_a.Id)
   if err != nil { return false, ErrQueryFailed }
   if (empty == false) { return false, nil }
 
@@ -131,21 +160,7 @@ func (cat_a *Category) ValidUpdate(db *sql.DB, other Table) (valid bool, err err
 
 func (cat *Category) ValidDelete(db *sql.DB) (valid bool, err error) {
   // ensure category is empty before deleting
-  empty, err := categoryIsEmpty(db, cat.Id)
+  empty, err := CategoryIsEmpty(db, cat.Id)
   if err != nil { return false, ErrQueryFailed }
-  if (empty == false) { return false, nil }
-  return true, nil
-}
-
-// ============================================================================
-
-func categoryIsEmpty(db *sql.DB, id string) (empty bool, err error) {
-  var dummy string
-
-  row := db.QueryRow(`SELECT id FROM metadata WHERE parent_id = ? LIMIT 1;`, id)
-  err = row.Scan(&dummy)
-  any_rows := (err != sql.ErrNoRows)
-  if any_rows { return false, nil }
-
-  return true, nil
+  return empty, nil
 }

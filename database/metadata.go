@@ -5,37 +5,6 @@ import (
   "encoding/json"
 )
 
-type FileStreamType string
-const (
-  FileStreamTypeVideo    FileStreamType = "video"
-  FileStreamTypeAudio    FileStreamType = "audio"
-  FileStreamTypeSubtitle FileStreamType = "subtitle"
-)
-type FileStream struct {
-  StreamType FileStreamType `json:"stream_type"`
-  Index      int64          `json:"index"`
-  Codec      string         `json:"codec"`
-  Width      int64          `json:"width"`
-  Height     int64          `json:"height"`
-  Fps        int64          `json:"fps"`
-  Channels   int64          `json:"channels"`
-  Language   string         `json:"language"`
-}
-func (stream *FileStream) Copy() (*FileStream) {
-  copy := FileStream{}
-  copy.StreamType = stream.StreamType
-  copy.Index      = stream.Index
-  copy.Codec      = stream.Codec
-  copy.Width      = stream.Width
-  copy.Height     = stream.Height
-  copy.Fps        = stream.Fps
-  copy.Channels   = stream.Channels
-  copy.Language   = stream.Language
-  return &copy
-}
-
-// ============================================================================
-
 type MetadataMediaType string
 const (
   MetadataMediaTypeFileVideo MetadataMediaType = "file-video"
@@ -54,7 +23,6 @@ type Metadata struct {
   Streams     []FileStream      `json:"streams"`
   Duration    int64             `json:"duration"`
   Size        int64             `json:"size"`
-  Hidden      bool              `json:"hidden"`
 }
 
 // ============================================================================
@@ -69,7 +37,6 @@ func (md *Metadata) Copy() (*Metadata) {
   copy.Streams     = make([]FileStream, len(md.Streams))
   copy.Duration    = md.Duration
   copy.Size        = md.Size
-  copy.Hidden      = md.Hidden
 
   for index, stream := range md.Streams {
     stream_copy := stream.Copy()
@@ -79,10 +46,10 @@ func (md *Metadata) Copy() (*Metadata) {
   return &copy
 }
 
-func (md *Metadata) Create (db *sql.DB) (err error) { return TableCreate(db, md) }
-func (md *Metadata) Replace(db *sql.DB, new_values *Metadata) (err error) { return TableReplace(db, md, new_values) }
-func (md *Metadata) Patch  (db *sql.DB, new_values map[string]any) (err error) { return TablePatch(db, md, new_values) }
-func (md *Metadata) Delete (db *sql.DB) (err error) { return TableDelete(db, md) }
+func MetadataCreate (db *sql.DB, md *Metadata)                            error { return TableCreate (db, md)             }
+func MetadataReplace(db *sql.DB, md *Metadata, new_values *Metadata)      error { return TableReplace(db, md, new_values) }
+func MetadataPatch  (db *sql.DB, md *Metadata, new_values map[string]any) error { return TablePatch  (db, md, new_values) }
+func MetadataDelete (db *sql.DB, md *Metadata)                            error { return TableDelete (db, md)             }
 
 func MetadataRead(db *sql.DB, id string) (md *Metadata, err error) {
   md = &Metadata{}
@@ -96,6 +63,31 @@ func MetadataWhere(db *sql.DB, where_string string, where_args ...any) (md_list 
   md_list = make([]Metadata, len(tables))
   for index, table := range tables { md_list[index] = *(table.(*Metadata)) }
   return md_list, nil
+}
+
+func MetadataIsEmpty(db *sql.DB, id string) (bool, error) {
+  var dummy string
+
+  row := db.QueryRow(`SELECT id FROM metadata WHERE parent_id = ? LIMIT 1;`, id)
+  err := row.Scan(&dummy)
+  if (err != nil) && (err != sql.ErrNoRows) { return false, err }
+  return (err == sql.ErrNoRows), nil
+}
+
+func MetadataMediaTypeValidString(media_type string) bool {
+  md_media_type := MetadataMediaType(media_type)
+  return MetadataMediaTypeValid(md_media_type)
+}
+func MetadataMediaTypeValid(media_type MetadataMediaType) bool {
+  switch(media_type) {
+    case MetadataMediaTypeFileVideo : fallthrough
+    case MetadataMediaTypeFileAudio : fallthrough
+    case MetadataMediaTypeSeries    : fallthrough
+    case MetadataMediaTypeSeason    : fallthrough
+    case MetadataMediaTypeArtist    : fallthrough
+    case MetadataMediaTypeAlbum     : return true
+    default: return false
+  }
 }
 
 // ============================================================================
@@ -125,7 +117,6 @@ func (md *Metadata) SetId(id string) {
 
 func (md *Metadata) FieldsRead() (fields map[string]any, err error) {
   fields = make(map[string]any)
-  hidden := int64(0) ; if md.Hidden { hidden = 1 }
   streams_bytes, err := json.Marshal(md.Streams) ; if err != nil { return nil, err } ; streams_string := string(streams_bytes)
 
   fields["id"           ] = md.Id
@@ -136,36 +127,34 @@ func (md *Metadata) FieldsRead() (fields map[string]any, err error) {
   fields["streams"      ] = streams_string
   fields["duration"     ] = md.Duration
   fields["size"         ] = md.Size
-  fields["hidden"       ] = hidden
 
   return fields, nil
 }
 
 func (md *Metadata) FieldsReplace(fields map[string]any) (err error) {
-  hidden := fields["hidden"].(int64) == 1
   streams_string := fields["streams"].(string) ; var streams []FileStream ; err = json.Unmarshal([]byte(streams_string), &streams) ; if err != nil { return err }
+  media_type :=  MetadataMediaType(fields["media_type"].(string))
 
   md.Id               = fields["id"               ].(string)
   md.ParentId         = fields["parent_id"        ].(string)
-  md.MediaType        = fields["media_type"       ].(MetadataMediaType)
+  md.MediaType        = media_type
   md.NameDisplay      = fields["name_display"     ].(string)
   md.NameSort         = fields["name_sort"        ].(string)
   md.Streams          = streams
   md.Duration         = fields["duration"         ].(int64)
   md.Size             = fields["size"             ].(int64)
-  md.Hidden           = hidden
 
   return nil
 }
 
 func (md *Metadata) FieldsPatch(fields map[string]any) (err error) {
-  if id,           ok := fields["id"]           ; ok { md.Id          = id.(string)                    }
-  if parent_id,    ok := fields["parent_id"]    ; ok { md.ParentId    = parent_id.(string)             }
-  if media_type,   ok := fields["media_type"]   ; ok { md.MediaType   = media_type.(MetadataMediaType) }
-  if name_display, ok := fields["name_display"] ; ok { md.NameDisplay = name_display.(string)          }
-  if name_sort,    ok := fields["name_sort"]    ; ok { md.NameSort    = name_sort.(string)             }
-  if duration,     ok := fields["duration"]     ; ok { md.Duration    = duration.(int64)               }
-  if size,         ok := fields["size"]         ; ok { md.Size        = size.(int64)                   }
+  if id,           ok := fields["id"]           ; ok { md.Id          = id.(string)                            }
+  if parent_id,    ok := fields["parent_id"]    ; ok { md.ParentId    = parent_id.(string)                     }
+  if media_type,   ok := fields["media_type"]   ; ok { md.MediaType   = MetadataMediaType(media_type.(string)) }
+  if name_display, ok := fields["name_display"] ; ok { md.NameDisplay = name_display.(string)                  }
+  if name_sort,    ok := fields["name_sort"]    ; ok { md.NameSort    = name_sort.(string)                     }
+  if duration,     ok := fields["duration"]     ; ok { md.Duration    = duration.(int64)                       }
+  if size,         ok := fields["size"]         ; ok { md.Size        = size.(int64)                           }
 
   if streams, ok := fields["streams"] ; ok {
     streams_string := streams.(string)
@@ -173,10 +162,6 @@ func (md *Metadata) FieldsPatch(fields map[string]any) (err error) {
     err = json.Unmarshal([]byte(streams_string), &streams)
     if err != nil { return err }
     md.Streams = streams
-  }
-
-  if hidden, ok := fields["hidden"] ; ok {
-    md.Hidden = (hidden.(int64) == 1)
   }
 
   return nil
@@ -187,7 +172,6 @@ func (md_a *Metadata) FieldsDifference(other Table) (diff map[string]any, err er
   md_b, b_is_md := other.(*Metadata)
   if b_is_md == false { return diff, ErrInvalidType }
 
-  b_hidden := int64(0) ; if md_b.Hidden { b_hidden = 1 }
   a_streams_bytes, err := json.Marshal(md_a.Streams) ; if err != nil { return nil, err } ; a_streams_string := string(a_streams_bytes)
   b_streams_bytes, err := json.Marshal(md_b.Streams) ; if err != nil { return nil, err } ; b_streams_string := string(b_streams_bytes)
 
@@ -199,7 +183,6 @@ func (md_a *Metadata) FieldsDifference(other Table) (diff map[string]any, err er
   if a_streams_string != b_streams_string { diff["streams"      ] = b_streams_string       }
   if md_a.Duration    != md_b.Duration    { diff["duration"     ] = md_b.Duration          }
   if md_a.Size        != md_b.Size        { diff["size"         ] = md_b.Size              }
-  if md_a.Hidden      != md_b.Hidden      { diff["hidden"       ] = b_hidden               }
 
   return diff, nil
 }
@@ -213,6 +196,7 @@ func (md *Metadata) ValidUpdate(db *sql.DB, other Table) (valid bool, err error)
 }
 
 func (md *Metadata) ValidDelete(db *sql.DB) (valid bool, err error) {
-  // TODO: ensure no children
-  return true, nil
+  empty, err := MetadataIsEmpty(db, md.Id)
+  if err != nil { return false, ErrQueryFailed }
+  return empty, nil
 }

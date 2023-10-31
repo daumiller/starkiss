@@ -66,15 +66,13 @@ func createTableMetadata(db *sql.DB) (err error) {
     name_sort         TEXT NOT NULL,
     streams           TEXT NOT NULL,
     duration          INTEGER NOT NULL,
-    size              INTEGER NOT NULL,
-    hidden            INTEGER NOT NULL
+    size              INTEGER NOT NULL
   );`)
   if err != nil { return err }
 
   _, err = db.Exec(`CREATE INDEX metadata_parent       ON metadata (parent_id);    ` ) ; if err != nil { return err }
   _, err = db.Exec(`CREATE INDEX metadata_media_type   ON metadata (media_type);   ` ) ; if err != nil { return err }
   _, err = db.Exec(`CREATE INDEX metadata_name_display ON metadata (name_display); ` ) ; if err != nil { return err }
-  _, err = db.Exec(`CREATE INDEX metadata_hidden       ON metadata (hidden);       ` ) ; if err != nil { return err }
   return nil
 }
 
@@ -83,7 +81,6 @@ func createTableInputFiles(db *sql.DB) (err error) {
   _, err = db.Exec(`CREATE TABLE input_files (
     id                       TEXT NOT NULL PRIMARY KEY UNIQUE,
     source_location          TEXT NOT NULL UNIQUE,
-    transcoded_location      TEXT NOT NULL,
     source_streams           TEXT NOT NULL,
     stream_map               TEXT NOT NULL,
     source_duration          INTEGER NOT NULL,

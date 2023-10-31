@@ -3,16 +3,12 @@ package main
 import (
 	"os"
   "fmt"
-	"math"
 	"time"
-  "strconv"
-	"strings"
 	"path/filepath"
   "database/sql"
-  "github.com/google/uuid"
   "github.com/yargevad/filepathx"
 	"github.com/daumiller/starkiss/database"
-	"github.com/vansante/go-ffprobe"
+  "github.com/daumiller/starkiss/library"
 )
 
 var DB *sql.DB = nil
@@ -35,6 +31,7 @@ func main() {
   DB, err = database.Open()
   if err != nil { fmt.Printf("Error opening database: %s\n", err.Error()) ; os.Exit(-1) }
   defer DB.Close()
+  library.SetDatabase(DB)
 
   fmt.Printf("Scanning %d paths...\n", len(paths))
   for _, path := range paths {
@@ -45,24 +42,10 @@ func main() {
   fmt.Printf("Done!\n")
 }
 
-func convertFpsString(fps_string string) int64 {
-  split := strings.Split(fps_string, "/")                ; if len(split) != 2 { return 0 }
-  numerator  , err := strconv.ParseInt(split[0], 10, 64) ; if err != nil { return 0 }
-  denominator, err := strconv.ParseInt(split[1], 10, 64) ; if err != nil { return 0 }
-  if denominator < 1 { return 0 }
-  floating := float64(numerator) / float64(denominator)
-  ceiling := math.Ceil(floating)
-  // we have a value, but it's often wrong, do basic checks
-  if ceiling < 10.0  { return 0 }
-  if ceiling > 320.0 { return 0 } // found some invalid files with things like 90000/1
-  return int64(ceiling)
-}
-
 func processFile(path string) (skip_reason string) {
-  lookup_row := DB.QueryRow("SELECT id FROM input_files WHERE source_location = ?", path)
-  lookup_id := ""
-  err := lookup_row.Scan(&lookup_id)
-  if err == nil { return "already-processed" }
+  exists, err := database.InputFileSourceExists(DB, path)
+  if err != nil { return "database-error" }
+  if exists { return "already-processed" }
 
   basename := filepath.Base(path)
   if basename[0] == '.' { return "hidden" }
@@ -72,79 +55,39 @@ func processFile(path string) (skip_reason string) {
 
   if fileinfo.IsDir() { return "directory" }
 
-  probe, err := ffprobe.GetProbeData(path, time.Second * 30)
+  source_streams, source_duration, err := library.FileStreamsList(path)
   if err != nil { return "probe-error" }
-  if len(probe.Streams) < 1 { return "no-streams" }
+  if len(source_streams) < 1 { return "no-streams" }
 
   inp := database.InputFile{}
-  inp.Id                     = uuid.NewString()
+  inp.Id                     = ""
   inp.SourceLocation         = path
-  inp.TranscodedLocation     = ""
-  inp.SourceStreams          = []database.FileStream {}
+  inp.SourceStreams          = source_streams
   inp.StreamMap              = []int64 {}
-  inp.SourceDuration         = int64(probe.Format.DurationSeconds)
+  inp.SourceDuration         = source_duration
   inp.TimeScanned            = time.Now().Unix()
   inp.TranscodingCommand     = ""
   inp.TranscodingTimeStarted = 0
   inp.TranscodingTimeElapsed = 0
   inp.TranscodingError       = ""
 
-  video_stream_count    := 0 ; video_stream_index    := 0
-  audio_stream_count    := 0 ; audio_stream_index    := 0
-  subtitle_stream_count := 0 ; subtitle_stream_index := 0
-  for _, probe_stream := range probe.Streams {
-    if probe_stream.CodecType == "video" {
-      video_stream := database.FileStream{}
-      video_stream.StreamType = database.FileStreamTypeVideo
-      video_stream.Index      = int64(probe_stream.Index)
-      video_stream.Codec      = probe_stream.CodecName
-      video_stream.Width      = int64(probe_stream.Width)
-      video_stream.Height     = int64(probe_stream.Height)
-      video_stream.Fps        = 0
-      video_stream.Channels   = 0
-      video_stream.Language   = ""
-
-      r_fps := convertFpsString(probe_stream.RFrameRate)
-      a_fps := convertFpsString(probe_stream.AvgFrameRate)
-      if (r_fps  > 0) && (a_fps == 0) { video_stream.Fps = r_fps }
-      if (r_fps == 0) && (a_fps  > 0) { video_stream.Fps = a_fps }
-      if (r_fps  > 0) && (a_fps  > 0) { video_stream.Fps = int64(math.Min(float64(r_fps), float64(a_fps))) }
-
-      inp.SourceStreams = append(inp.SourceStreams, video_stream)
-      video_stream_index = probe_stream.Index
+  video_stream_count    := 0 ; video_stream_index    := int64(0)
+  audio_stream_count    := 0 ; audio_stream_index    := int64(0)
+  subtitle_stream_count := 0 ; subtitle_stream_index := int64(0)
+  for _, stream := range source_streams {
+    if stream.StreamType == database.FileStreamTypeVideo {
+      video_stream_index = stream.Index
       video_stream_count += 1
-    } else if probe_stream.CodecType == "audio" {
-      audio_stream := database.FileStream{}
-      audio_stream.StreamType = database.FileStreamTypeAudio
-      audio_stream.Index      = int64(probe_stream.Index)
-      audio_stream.Codec      = probe_stream.CodecName
-      audio_stream.Width      = 0
-      audio_stream.Height     = 0
-      audio_stream.Fps        = 0
-      audio_stream.Channels   = int64(probe_stream.Channels)
-      audio_stream.Language   = probe_stream.Tags.Language
-
-      inp.SourceStreams = append(inp.SourceStreams, audio_stream)
-      audio_stream_index = probe_stream.Index
+    } else if stream.StreamType == database.FileStreamTypeAudio {
+      audio_stream_index = stream.Index
       audio_stream_count += 1
-    } else if probe_stream.CodecType == "subtitle" {
-      subtitle_stream := database.FileStream{}
-      subtitle_stream.StreamType = database.FileStreamTypeSubtitle
-      subtitle_stream.Index      = int64(probe_stream.Index)
-      subtitle_stream.Codec      = probe_stream.CodecName
-      subtitle_stream.Width      = 0
-      subtitle_stream.Height     = 0
-      subtitle_stream.Fps        = 0
-      subtitle_stream.Channels   = 0
-      subtitle_stream.Language   = probe_stream.Tags.Language
-
-      inp.SourceStreams = append(inp.SourceStreams, subtitle_stream)
-      subtitle_stream_index = probe_stream.Index
+    } else if stream.StreamType == database.FileStreamTypeSubtitle {
+      subtitle_stream_index = stream.Index
       subtitle_stream_count += 1
     }
   }
 
-  if (video_stream_count == 0) && (audio_stream_count == 0) { return "no streams found" }
+  if (video_stream_count == 0) && (audio_stream_count == 0) { return "no a/v streams found" }
 
   // auto-map, for simple cases
   if (video_stream_count < 2) && (audio_stream_count < 2) && (subtitle_stream_count < 2) {
@@ -155,7 +98,7 @@ func processFile(path string) (skip_reason string) {
     inp.StreamMap = stream_map
   }
 
-  err = inp.Create(DB)
+  err = database.InputFileCreate(DB, &inp)
   if err != nil {
     println(err.Error())
     return "database-error"
