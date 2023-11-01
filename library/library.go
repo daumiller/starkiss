@@ -7,6 +7,7 @@ import (
   "regexp"
   "strings"
   "database/sql"
+  _ "modernc.org/sqlite"
 )
 
 // ============================================================================

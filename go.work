@@ -2,7 +2,7 @@ go 1.21.1
 
 use (
   ./library
-  ./server
   ./scanner
   ./transcoder
+  ./server
 )

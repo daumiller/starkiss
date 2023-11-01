@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
   "database/sql"
-	"github.com/daumiller/starkiss/database"
   "github.com/daumiller/starkiss/library"
 	"github.com/schollz/progressbar/v3"
 )
@@ -37,20 +36,14 @@ func main() {
     }
   }
 
-  // database
-  if os.Getenv("DBFILE") != "" { database.Location = os.Getenv("DBFILE") }
-  _, err := os.Stat(database.Location)
-  if os.IsNotExist(err) {
-    fmt.Printf("Database file \"%s\" does not exist.\n", database.Location)
-    os.Exit(-1)
-  }
-  DB, err = database.Open()
-  if err != nil { fmt.Printf("Error opening database: %s\n", err.Error()) ; os.Exit(-1) }
-  defer DB.Close()
-  library.SetDatabase(DB)
-
-  if library.MediaPathValid() == false {
-    fmt.Printf("Media path is not valid.\n")
+  // library
+  db_path := os.Getenv("DBFILE")
+  if db_path == "" { fmt.Printf("DBFILE environment variable not set.\n") ; os.Exit(-1) }
+  err := library.LibraryStartup(db_path)
+  if err != nil { fmt.Printf("Error starting library: %s\n", err.Error()) ; os.Exit(-1) }
+  defer library.LibraryShutdown()
+  if library.LibraryReady() != nil {
+    fmt.Printf("Library not ready: %s\n", err.Error())
     os.Exit(-1)
   }
 
@@ -77,28 +70,28 @@ func main() {
 }
 
 func setStopValue() {
-  err := database.PropertyUpsert(DB, "transcoder_stop", strconv.FormatInt(time.Now().Unix(), 10))
+  err := library.PropertySet("transcoder_stop", strconv.FormatInt(time.Now().Unix(), 10))
   if err != nil { fmt.Printf("Error setting transcoder stop value: %s\n", err.Error()) ; os.Exit(-1) }
 }
 
 func getStopValue() string {
-  stop_string, err := database.PropertyRead(DB, "transcoder_stop")
+  stop_string, err := library.PropertyGet("transcoder_stop")
   if err != nil { return "" }
   return stop_string
 }
 
-func getTask() *database.InputFile {
-  inp, err := database.InputFileNextForTranscoding(DB)
+func getTask() *library.InputFile {
+  inp, err := library.InputFileNextForTranscoding()
   if err != nil { fmt.Printf("Error getting next input file: %s\n", err.Error()) ; os.Exit(-1) }
   return inp
 }
 
-func getArguments(inp *database.InputFile, primary_type database.FileStreamType) []string {
+func getArguments(inp *library.InputFile, primary_type library.FileStreamType) []string {
   arguments := []string {
     "-i", inp.SourceLocation,
     "-progress", "pipe:1",
   }
-  if primary_type == database.FileStreamTypeVideo {
+  if primary_type == library.FileStreamTypeVideo {
     arguments = append(arguments,
       "-map_metadata", "-1",
     )
@@ -110,9 +103,9 @@ func getArguments(inp *database.InputFile, primary_type database.FileStreamType)
 
   for _, stream_index := range inp.StreamMap {
     stream := inp.SourceStreams[stream_index]
-    if stream.StreamType == database.FileStreamTypeVideo    { has_video    = true }
-    if stream.StreamType == database.FileStreamTypeSubtitle { has_subtitle = true }
-    if stream.StreamType == database.FileStreamTypeAudio {
+    if stream.StreamType == library.FileStreamTypeVideo    { has_video    = true }
+    if stream.StreamType == library.FileStreamTypeSubtitle { has_subtitle = true }
+    if stream.StreamType == library.FileStreamTypeAudio {
       has_audio = true
       if stream.Codec == "mp3" { audio_mp3 = true }
     }
@@ -131,13 +124,13 @@ func getArguments(inp *database.InputFile, primary_type database.FileStreamType)
     )
   }
   if has_audio {
-    if primary_type == database.FileStreamTypeVideo {
+    if primary_type == library.FileStreamTypeVideo {
       arguments = append(arguments,
         "-acodec", "aac",
         "-ac"    , "2",
       )
     }
-    if primary_type == database.FileStreamTypeAudio {
+    if primary_type == library.FileStreamTypeAudio {
       if audio_mp3 {
         arguments = append(arguments,
           "-vn",  // disable video
@@ -162,18 +155,18 @@ func getArguments(inp *database.InputFile, primary_type database.FileStreamType)
   return arguments
 }
 
-func setReady(inp *database.InputFile, arguments []string) {
-  err := library.InputFileStart(inp, time.Now().Unix(), "ffmpeg " + strings.Join(arguments, " "))
+func setReady(inp *library.InputFile, arguments []string) {
+  err := inp.StatusSetStarted(time.Now().Unix(), "ffmpeg " + strings.Join(arguments, " "))
   if err != nil { fmt.Printf("Error updating input file: %s\n", err.Error()) ; os.Exit(-1) }
 }
 
-func setFailed(inp *database.InputFile, message string) {
+func setFailed(inp *library.InputFile, message string) {
   fmt.Printf("Transcoding task failed: %s -- %s\n", inp.Id, message)
-  err := library.InputFileFail(inp, time.Now().Unix(), message)
+  err := inp.StatusSetFailed(time.Now().Unix(), message)
   if err != nil { fmt.Printf("Error updating failed transcoding task: %s\n", err.Error()) ; os.Exit(-1) }
 }
 
-func setComplete(inp *database.InputFile, output_path string, name_display string, name_sort string) {
+func setComplete(inp *library.InputFile, output_path string, name_display string, name_sort string) {
   // get ouput size
   output_stat, err := os.Stat(output_path)
   if err != nil { setFailed(inp, fmt.Sprintf("Error getting output file size: %s\n", err.Error())) ; return }
@@ -184,11 +177,11 @@ func setComplete(inp *database.InputFile, output_path string, name_display strin
   if err != nil { setFailed(inp, fmt.Sprintf("Error getting streams from transcoded file: %s\n", err.Error())) ; return }
 
   // create metadata record
-  file_type := database.MetadataMediaTypeFileAudio
+  file_type := library.MetadataMediaTypeFileAudio
   for _, stream := range output_streams {
-    if stream.StreamType == database.FileStreamTypeVideo { file_type = database.MetadataMediaTypeFileVideo ; break }
+    if stream.StreamType == library.FileStreamTypeVideo { file_type = library.MetadataMediaTypeFileVideo ; break }
   }
-  md := database.Metadata {}
+  md := library.Metadata {}
   md.Id          = inp.Id
   md.ParentId    = ""
   md.MediaType   = file_type
@@ -197,24 +190,24 @@ func setComplete(inp *database.InputFile, output_path string, name_display strin
   md.Streams     = output_streams
   md.Duration    = output_duration
   md.Size        = output_size
-  err = database.MetadataCreate(DB, &md)
+  err = library.MetadataCreate(&md)
   if err != nil { setFailed(inp, fmt.Sprintf("Error creating metadata record: %s\n", err.Error())) ; return }
 
   // update InputFile record
-  err = library.InputFileSucceed(inp, time.Now().Unix())
+  err = inp.StatusSetSucceeded(time.Now().Unix())
   if err != nil { setFailed(inp, fmt.Sprintf("Error updating unprocessed entry: %s\n", err.Error())) ; return }
 }
 
-func runTask(inp *database.InputFile) {
+func runTask(inp *library.InputFile) {
   // get output file name
-  output_name_display, output_name_sort, output_path := library.InputFileOutputNames(inp)
-  output_primary_type := library.InputFileOutputType(inp)
-  if (output_primary_type != database.FileStreamTypeVideo) && (output_primary_type != database.FileStreamTypeAudio) {
+  output_name_display, output_name_sort, output_path := inp.OutputNames()
+  output_primary_type := inp.OutputType()
+  if (output_primary_type != library.FileStreamTypeVideo) && (output_primary_type != library.FileStreamTypeAudio) {
     setFailed(inp, fmt.Sprintf("Unable to determine if output is audio/video"))
     return
   }
-  if output_primary_type == database.FileStreamTypeVideo { output_path = output_path + ".mp4" }
-  if output_primary_type == database.FileStreamTypeAudio { output_path = output_path + ".mp3" }
+  if output_primary_type == library.FileStreamTypeVideo { output_path = output_path + ".mp4" }
+  if output_primary_type == library.FileStreamTypeAudio { output_path = output_path + ".mp3" }
 
   // ensure this file doesn't already exist
   _, err := os.Stat(output_path)

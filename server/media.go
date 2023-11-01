@@ -4,7 +4,7 @@ import (
   "os"
   "path"
   "github.com/gofiber/fiber/v2"
-  "github.com/daumiller/starkiss/database"
+  "github.com/daumiller/starkiss/library"
 )
 
 func startupMediaRoutes(server *fiber.App) {

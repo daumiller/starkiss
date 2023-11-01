@@ -6,7 +6,7 @@ import (
   "strconv"
   "crypto/rand"
   "encoding/base64"
-  "github.com/daumiller/starkiss/database"
+  "github.com/daumiller/starkiss/library"
 )
 
 // Perform database migration, either:

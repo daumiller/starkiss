@@ -2,19 +2,16 @@ module github.com/daumiller/starkiss/scanner
 
 go 1.21.1
 
-replace github.com/daumiller/starkiss/database => ./../database
-
 replace github.com/daumiller/starkiss/library => ./../library
 
 require (
-	github.com/daumiller/starkiss/database v0.0.0-00010101000000-000000000000
 	github.com/daumiller/starkiss/library v0.0.0-00010101000000-000000000000
 	github.com/yargevad/filepathx v1.0.0
 )
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/google/uuid v1.3.0 // indirect
+	github.com/google/uuid v1.3.1 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect

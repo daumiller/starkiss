@@ -5,16 +5,20 @@ import (
   "fmt"
 	"time"
 	"path/filepath"
-  "database/sql"
   "github.com/yargevad/filepathx"
-	"github.com/daumiller/starkiss/database"
   "github.com/daumiller/starkiss/library"
 )
 
-var DB *sql.DB = nil
-
 func main() {
-  if os.Getenv("DBFILE") != "" { database.Location = os.Getenv("DBFILE") }
+  db_path := os.Getenv("DBFILE")
+  if db_path == "" { fmt.Printf("DBFILE environment variable not set.\n") ; os.Exit(-1) }
+  err := library.LibraryStartup(db_path)
+  if err != nil { fmt.Printf("Error starting library: %s\n", err.Error()) ; os.Exit(-1) }
+  defer library.LibraryShutdown()
+  if library.LibraryReady() != nil {
+    fmt.Printf("Library not ready: %s\n", err.Error())
+    os.Exit(-1)
+  }
 
   if len(os.Args) < 2 {
     fmt.Printf("Usage: scanner <path>\n")
@@ -28,11 +32,6 @@ func main() {
   paths, err := filepathx.Glob(os.Args[1])
   if err != nil { fmt.Printf("Error processing glob: %s\n", err.Error()) ; os.Exit(-1) }
 
-  DB, err = database.Open()
-  if err != nil { fmt.Printf("Error opening database: %s\n", err.Error()) ; os.Exit(-1) }
-  defer DB.Close()
-  library.SetDatabase(DB)
-
   fmt.Printf("Scanning %d paths...\n", len(paths))
   for _, path := range paths {
     skipped_reason := processFile(path)
@@ -43,8 +42,7 @@ func main() {
 }
 
 func processFile(path string) (skip_reason string) {
-  exists, err := database.InputFileSourceExists(DB, path)
-  if err != nil { return "database-error" }
+  exists := library.InputFileExistsForSource(path)
   if exists { return "already-processed" }
 
   basename := filepath.Base(path)
@@ -59,7 +57,7 @@ func processFile(path string) (skip_reason string) {
   if err != nil { return "probe-error" }
   if len(source_streams) < 1 { return "no-streams" }
 
-  inp := database.InputFile{}
+  inp := library.InputFile{}
   inp.Id                     = ""
   inp.SourceLocation         = path
   inp.SourceStreams          = source_streams
@@ -75,13 +73,13 @@ func processFile(path string) (skip_reason string) {
   audio_stream_count    := 0 ; audio_stream_index    := int64(0)
   subtitle_stream_count := 0 ; subtitle_stream_index := int64(0)
   for _, stream := range source_streams {
-    if stream.StreamType == database.FileStreamTypeVideo {
+    if stream.StreamType == library.FileStreamTypeVideo {
       video_stream_index = stream.Index
       video_stream_count += 1
-    } else if stream.StreamType == database.FileStreamTypeAudio {
+    } else if stream.StreamType == library.FileStreamTypeAudio {
       audio_stream_index = stream.Index
       audio_stream_count += 1
-    } else if stream.StreamType == database.FileStreamTypeSubtitle {
+    } else if stream.StreamType == library.FileStreamTypeSubtitle {
       subtitle_stream_index = stream.Index
       subtitle_stream_count += 1
     }
@@ -98,7 +96,7 @@ func processFile(path string) (skip_reason string) {
     inp.StreamMap = stream_map
   }
 
-  err = database.InputFileCreate(DB, &inp)
+  err = library.InputFileCreate(&inp)
   if err != nil {
     println(err.Error())
     return "database-error"

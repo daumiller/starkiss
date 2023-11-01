@@ -3,7 +3,7 @@ package main
 import (
   "os"
   "github.com/gofiber/fiber/v2"
-  "github.com/daumiller/starkiss/database"
+  "github.com/daumiller/starkiss/library"
 )
 
 /* Workflow:
