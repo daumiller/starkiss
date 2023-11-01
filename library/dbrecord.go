@@ -1,4 +1,4 @@
-package database
+package library
 
 import (
   "fmt"
@@ -7,40 +7,31 @@ import (
   "github.com/google/uuid"
 )
 
-var ErrInvalidType       = fmt.Errorf("invalid type")
-var ErrValidationFailed  = fmt.Errorf("validation failed")
+var ErrInvalidType = fmt.Errorf("invalid type")
 
-type Table interface {
-  TableName() string                                              // name of the table
-  GetId() string                                                  // get the id
-  SetId(id string)                                                // set the id
-  CreateFrom(fields map[string]any) (instance Table, err error)   // create from full set of field:values
-  CopyRecord() (instance Table, err error)                        // create a copy of a record
+type dbRecord interface {
+  TableName() string                                                 // name of the table
+  GetId() string                                                     // get the id
+  SetId(id string)                                                   // set the id
+  RecordCreate(fields map[string]any) (instance dbRecord, err error) // create record from full set of field:values
+  RecordCopy() (instance dbRecord, err error)                        // create record copy
 
-  FieldsRead() (fields map[string]any, err error)                 // read field:values from struct
-  FieldsReplace(fields map[string]any) (err error)                // write full set of field:values to struct
-  FieldsPatch(fields map[string]any) (err error)                  // write partial set of field:values to struct
-  FieldsDifference(other Table) (diff map[string]any, err error)  // compare field:values
-
-  ValidCreate(db *sql.DB) (valid bool, err error)                 // is this a valid create?
-  ValidUpdate(db *sql.DB, other Table) (valid bool, err error)    // is this a valid update?
-  ValidDelete(db *sql.DB) (valid bool, err error)                 // is this a valid delete?
+  FieldsRead() (fields map[string]any, err error)                   // read field:values from struct
+  FieldsReplace(fields map[string]any) (err error)                  // write full set of field:values to struct
+  FieldsPatch(fields map[string]any) (err error)                    // write partial set of field:values to struct
+  FieldsDifference(other dbRecord) (diff map[string]any, err error) // compare field:values
 }
 
 // ============================================================================
 
-func TableCreate(db *sql.DB, table Table) (err error) {
-  valid, err := table.ValidCreate(db)
-  if err != nil { return err }
-  if valid == false { return ErrValidationFailed }
-
-  fields, err := table.FieldsRead()
+func dbRecordCreate(record dbRecord) (err error) {
+  fields, err := record.FieldsRead()
   if err != nil { return err }
 
   id, id_present := fields["id"]
   if (id_present == false) || (id == "") {
     fields["id"] = uuid.NewString()
-    table.SetId(fields["id"].(string))
+    record.SetId(fields["id"].(string))
   }
 
   columns := []string {}
@@ -52,30 +43,22 @@ func TableCreate(db *sql.DB, table Table) (err error) {
     values  = append(values, value)
   }
 
-  query_string := fmt.Sprintf(`INSERT INTO %s (%s) VALUES (%s);`, table.TableName(), strings.Join(columns, ", "), strings.Join(params, ", "))
-  result, err := db.Exec(query_string, values...)
+  query_string := fmt.Sprintf(`INSERT INTO %s (%s) VALUES (%s);`, record.TableName(), strings.Join(columns, ", "), strings.Join(params, ", "))
+  result, err := dbHandle.Exec(query_string, values...)
   if err != nil { return err }
   if rows, _ := result.RowsAffected(); rows != 1 { return ErrQueryFailed }
   return nil
 }
 
-func TableDelete(db *sql.DB, table Table) (err error) {
-  valid, err := table.ValidDelete(db)
-  if err != nil { return err }
-  if valid == false { return ErrValidationFailed }
-
-  query_string := fmt.Sprintf(`DELETE FROM %s WHERE id = ?;`, table.TableName())
-  result, err := db.Exec(query_string, table.GetId())
+func dbRecordDelete(record dbRecord) (err error) {
+  query_string := fmt.Sprintf(`DELETE FROM %s WHERE id = ?;`, record.TableName())
+  result, err := dbHandle.Exec(query_string, record.GetId())
   if err != nil { return err }
   if rows, _ := result.RowsAffected(); rows != 1 { return ErrQueryFailed }
   return nil
 }
 
-func TableReplace(db *sql.DB, current Table, proposed Table) (err error) {
-  valid, err := current.ValidUpdate(db, proposed)
-  if err != nil { return err }
-  if valid == false { return ErrValidationFailed }
-
+func dbRecordReplace(current dbRecord, proposed dbRecord) (err error) {
   difference, err := current.FieldsDifference(proposed)
   if err != nil { return err }
 
@@ -91,7 +74,7 @@ func TableReplace(db *sql.DB, current Table, proposed Table) (err error) {
   values = append(values, current.GetId())
 
   query_string := fmt.Sprintf(`UPDATE %s SET %s WHERE id = ?;`, current.TableName(), strings.Join(columns, ", "))
-  result, err := db.Exec(query_string, values...)
+  result, err := dbHandle.Exec(query_string, values...)
   if err != nil { return err }
   count, err := result.RowsAffected()
   if err != nil { return err }
@@ -101,15 +84,12 @@ func TableReplace(db *sql.DB, current Table, proposed Table) (err error) {
   return nil
 }
 
-func TablePatch(db *sql.DB, current Table, patch map[string]any) (err error) {
+func dbRecordPatch(current dbRecord, patch map[string]any) (err error) {
   if len(patch) == 0 { return nil }
 
-  proposed, err := current.CopyRecord()
+  proposed, err := current.RecordCopy()
   if err != nil { return err }
   proposed.FieldsPatch(patch)
-  valid, err := current.ValidUpdate(db, proposed)
-  if err != nil { return err }
-  if valid == false { return ErrValidationFailed }
 
   columns := []string {}
   values  := []any {}
@@ -120,7 +100,7 @@ func TablePatch(db *sql.DB, current Table, patch map[string]any) (err error) {
   values = append(values, current.GetId())
 
   query_string := fmt.Sprintf(`UPDATE %s SET %s WHERE id = ?;`, current.TableName(), strings.Join(columns, ", "))
-  result, err := db.Exec(query_string, values...)
+  result, err := dbHandle.Exec(query_string, values...)
   if err != nil { return err }
   count, err := result.RowsAffected()
   if err != nil { return err }
@@ -130,8 +110,8 @@ func TablePatch(db *sql.DB, current Table, patch map[string]any) (err error) {
   return nil
 }
 
-func TableRead(db *sql.DB, table Table, id string) (err error) {
-  fields, err := table.FieldsRead()
+func dbRecordRead(record dbRecord, id string) (err error) {
+  fields, err := record.FieldsRead()
   if err != nil { return err }
 
   columns := []string {}
@@ -143,20 +123,20 @@ func TableRead(db *sql.DB, table Table, id string) (err error) {
   addresses := make([]any, len(values))
   for index := range values { addresses[index] = &(values[index]) }
 
-  query_string := fmt.Sprintf(`SELECT %s FROM %s WHERE id = ?;`, strings.Join(columns, ", "), table.TableName())
-  result := db.QueryRow(query_string, id)
+  query_string := fmt.Sprintf(`SELECT %s FROM %s WHERE id = ?;`, strings.Join(columns, ", "), record.TableName())
+  result := dbHandle.QueryRow(query_string, id)
   err = result.Scan(addresses...)
   if err == sql.ErrNoRows { return ErrNotFound }
   if err != nil { return err }
 
   for index := range values { fields[columns[index]] = values[index] }
-  return table.FieldsReplace(fields)
+  return record.FieldsReplace(fields)
 }
 
-func TableWhere(db *sql.DB, table Table, where_string string, where_values ...any) (results []Table, err error) {
-  results = make([]Table, 0)
+func dbRecordWhere(record dbRecord, where_string string, where_values ...any) (results []dbRecord, err error) {
+  results = make([]dbRecord, 0)
 
-  fields, err := table.FieldsRead()
+  fields, err := record.FieldsRead()
   if err != nil { return results, err }
 
   columns := []string {}
@@ -169,8 +149,8 @@ func TableWhere(db *sql.DB, table Table, where_string string, where_values ...an
   for index := range values { addresses[index] = &(values[index]) }
 
   if where_string != "" { where_string = fmt.Sprintf(`WHERE %s`, where_string) }
-  query_string := fmt.Sprintf(`SELECT %s FROM %s %s ;`, strings.Join(columns, ", "), table.TableName(), where_string)
-  rows, err := db.Query(query_string, where_values...)
+  query_string := fmt.Sprintf(`SELECT %s FROM %s %s ;`, strings.Join(columns, ", "), record.TableName(), where_string)
+  rows, err := dbHandle.Query(query_string, where_values...)
   if err != nil { return results, err }
   defer rows.Close()
 
@@ -178,7 +158,7 @@ func TableWhere(db *sql.DB, table Table, where_string string, where_values ...an
     err = rows.Scan(addresses...)
     if err != nil { return results, err }
     for index := range values { fields[columns[index]] = values[index] }
-    this_result, err := table.CreateFrom(fields)
+    this_result, err := record.RecordCreate(fields)
     if err != nil { return results, err }
     results = append(results, this_result)
   }

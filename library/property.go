@@ -1,12 +1,11 @@
 package library
 
 import (
-	"os"
+  "os"
   "fmt"
-  "io/fs"
-  "errors"
-	"path/filepath"
-	"github.com/daumiller/starkiss/database"
+  "strconv"
+  "path/filepath"
+  "database/sql"
 )
 
 var ErrInvalidProperty = fmt.Errorf("invalid property")
@@ -22,7 +21,7 @@ var excluded_properties = map[string]bool {
 
 // List all properties that can be freely edited.
 func PropertyList() (map[string]string, error) {
-  full_list, err := database.PropertyList(db)
+  full_list, err := dbPropertyList()
   if err != nil { return nil, err }
 
   for key := range full_list {
@@ -35,38 +34,35 @@ func PropertyList() (map[string]string, error) {
 
 func PropertyGet(key string) (string, error) {
   if excluded_properties[key] == true { return "", ErrInvalidProperty }
-  return database.PropertyRead(db, key)
+  return dbPropertyRead(key)
 }
 
 func PropertySet(key string, value string) error {
   if excluded_properties[key] == true { return ErrInvalidProperty }
-  return database.PropertyUpsert(db, key, value)
+  return dbPropertyUpsert(key, value)
 }
 
 func PropertyDelete(key string) error {
   if excluded_properties[key] == true { return ErrInvalidProperty }
-  return database.PropertyDelete(db, key)
+  return dbPropertyDelete(key)
 }
 
 // ============================================================================
 // Special Properties
 
-var media_path_cache string = ""
-
 func MediaPathGet() (string, error) {
-  if media_path_cache != "" { return media_path_cache, nil }
+  if mediaPath != "" { return mediaPath, nil }
 
   var err error
-  media_path_cache, err = database.PropertyRead(db, "media_path")
-  return media_path_cache, err
+  mediaPath, err = dbPropertyRead("media_path")
+  return mediaPath, err
 }
 
 func MediaPathValid() bool {
   media_path, err := MediaPathGet()
   if err != nil { return false }
   if media_path == "" { return false }
-  _, err = os.Stat(media_path)
-  if err != nil { return false }
+  if pathIsDirectory(media_path) == false { return false }
   return true
 }
 
@@ -74,7 +70,7 @@ func MediaPathValid() bool {
 // This involves moving the media directory, and may take a while.
 // This call should not be allowed from a web interface.
 func MediaPathSet(new_path string) error {
-  if !NameValidForDisk(filepath.Base(new_path)) { return ErrInvalidName }
+  if !nameValidForDisk(filepath.Base(new_path)) { return ErrInvalidName }
 
   new_library := false
   curr_path, err := MediaPathGet()
@@ -82,13 +78,10 @@ func MediaPathSet(new_path string) error {
   if curr_path == "" {
     new_library = true
   } else {
-    _, err := os.Stat(curr_path)
-    if err != nil { return fmt.Errorf("cannot move media library, existing path \"%s\" not found: %s", curr_path, err.Error()) }
+    if !pathExists(curr_path) { return fmt.Errorf("cannot move media library, existing path \"%s\" not found: %s", curr_path, err.Error()) }
   }
 
-  _, err = os.Stat(new_path)
-  if err == nil { return fmt.Errorf("cannot move media to \"%s\": path already exists", new_path) }
-  if !errors.Is(err, fs.ErrNotExist) { return fmt.Errorf("cannot move media to \"%s\": %s", new_path, err.Error()) }
+  if pathExists(new_path) { return fmt.Errorf("cannot move media to \"%s\": path already exists", new_path) }
 
   if new_library {
     err = os.MkdirAll(new_path, 0770)
@@ -98,9 +91,76 @@ func MediaPathSet(new_path string) error {
     if err != nil { return fmt.Errorf("cannot move media library from \"%s\" to \"%s\": %s", curr_path, new_path, err.Error()) }
   }
 
-  err = database.PropertyUpsert(db, "media_path", new_path)
+  err = dbPropertyUpsert("media_path", new_path)
   if err != nil { return fmt.Errorf("cannot update database with new media path \"%s\": %s", new_path, err.Error()) }
 
-  media_path_cache = new_path
+  mediaPath = new_path
   return nil
+}
+
+
+// Get current migration level.
+func MigrationLevelGet() (level uint32) {
+  level_string, err := dbPropertyRead("migration_level")
+  if err != nil { return 0 }
+
+  level64, err := strconv.ParseUint(level_string, 10, 32)
+  if err != nil { return 0 }
+  return uint32(level64)
+}
+
+// Set current migration level.
+func migrationLevelSet(level uint32) (err error) {
+  err = dbPropertyUpsert("migration_level", strconv.FormatUint(uint64(level), 10))
+  if err != nil { return err }
+  return nil
+}
+
+
+// ============================================================================
+// database interface
+
+// Read a key/value from properties.
+func dbPropertyRead(key string) (value string, err error) {
+  row := dbHandle.QueryRow(`SELECT value FROM properties WHERE key = ?;`, key)
+  err = row.Scan(&value)
+  if err == sql.ErrNoRows { return "", ErrNotFound }
+  if err != nil { return "", ErrQueryFailed }
+  return value, nil
+}
+
+// Insert/Update a key/value in properties.
+func dbPropertyUpsert(key string, value string) (err error) {
+  result, err := dbHandle.Exec(`INSERT INTO properties (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?;`, key, value, value)
+  if err != nil { return ErrQueryFailed }
+  affected, err := result.RowsAffected()
+  if err != nil { return ErrQueryFailed }
+  if affected != 1 { return ErrQueryFailed}
+  return nil
+}
+
+// Delete a key/value from properties.
+func dbPropertyDelete(key string) (err error) {
+  result, err := dbHandle.Exec(`DELETE FROM properties WHERE key = ?;`, key)
+  if err != nil { return ErrQueryFailed }
+  affected, err := result.RowsAffected()
+  if err != nil { return ErrQueryFailed }
+  if affected != 1 { return ErrNotFound }
+  return nil
+}
+
+// Read all key/values from properties.
+func dbPropertyList() (properties map[string]string, err error) {
+  properties = map[string]string {}
+  rows, err := dbHandle.Query(`SELECT key, value FROM properties;`)
+  if err != nil { return nil, ErrQueryFailed }
+  defer rows.Close()
+  for rows.Next() {
+    var key string
+    var value string
+    err = rows.Scan(&key, &value)
+    if err != nil { return nil, ErrQueryFailed }
+    properties[key] = value
+  }
+  return properties, nil
 }
