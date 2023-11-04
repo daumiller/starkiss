@@ -3,17 +3,15 @@ package main
 import (
   "os"
   "fmt"
-  "database/sql"
   "github.com/gofiber/fiber/v2"
   "github.com/daumiller/starkiss/library"
 )
 
 // globals & defaults
-var DB         *sql.DB = nil     // global handle to database; initialized in main()
+var DBFILE     string  = "starkiss.db"
 var ADDRESS    string  = ":4331" // server binding address; can be overridden by environment variable
 var DEBUG      bool    = false   // debug mode; can be overridden by environment variable
-var JWTKEY     []byte  = nil     // JWT key; created or read from DB in propertiesMain()
-var MEDIA_PATH string = ""       // media_path; read from DB in propertiesMain()
+var JWT_KEY    []byte  = nil     // JWT key; created or read from DB in propertiesMain()
 
 // simple debug handler for 500s
 func debug500(context *fiber.Ctx, err error) error {
@@ -22,20 +20,27 @@ func debug500(context *fiber.Ctx, err error) error {
 }
 
 func main() {
-  // check for environment variables and command-line arguments
+  // check for environment variables
   startupEnvironment()
+
+  // startup Library
+  err := library.LibraryStartup(DBFILE)
+  if err != nil { fmt.Printf("Error starting library: %s\n", err.Error()) ; os.Exit(-1) }
+  defer library.LibraryShutdown()
+
+  // check for command line arguments
   startupCommands()
 
   // update database to latest migration (creating DB if necessary)
   exit_code := startupMigration("latest")
   if exit_code != 0 { os.Exit(exit_code) }
 
-  // get database handle, get default properties
-  var err error
-  DB, err = database.Open()
-  if err != nil { fmt.Printf("Error opening database: \"%s\"\n", err.Error()); os.Exit(-1) }
-  defer database.Close(DB)
+  // get default properties
   startupProperties()
+
+  // ensure Library is ready
+  err = library.LibraryReady()
+  if err != nil { fmt.Printf("Error starting library; not ready: %s\n", err.Error()) ; os.Exit(-1) }
 
   // startup server, and register routes
   server := fiber.New()
@@ -54,9 +59,9 @@ func main() {
 
 // Look for environment variables. If present, override defaults.
 func startupEnvironment() {
-  if os.Getenv("DEBUG")   == "true" { DEBUG = true }
+  if os.Getenv("DEBUG")   == "true" { DEBUG   = true                 }
   if os.Getenv("ADDRESS") != ""     { ADDRESS = os.Getenv("ADDRESS") }
-  if os.Getenv("DBFILE")  != ""     { database.Location = os.Getenv("DBFILE") }
+  if os.Getenv("DBFILE")  != ""     { DBFILE  = os.Getenv("DBFILE")  }
 }
 
 // Look for command line arguments. If present, execute them and exit.

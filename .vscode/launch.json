@@ -8,7 +8,7 @@
       "mode": "debug",
       "program": "./server",
       "args": [],
-      "env": { "CGO_ENABLED":"0", "GOOS":"darwin", "DEBUG":"true", "DBFILE":"/Users/darcy/dev/stark/starkiss.db",  }
+      "env": { "CGO_ENABLED":"0", "GOOS":"darwin", "DEBUG":"true", "DBFILE":"/Users/darcy/Downloads/starkiss/starkiss.db",  }
     },
     {
       "name": "Scanner Debug",
@@ -17,7 +17,7 @@
       "mode": "debug",
       "program": "./scanner",
       "args": ["/Volumes/Starkiss/import/Music/Bjork/Debut/03 Venus As A Boy.mp3"],
-      "env": { "CGO_ENABLED":"0", "GOOS":"darwin", "DBFILE":"/Users/darcy/dev/stark/starkiss.db", }
+      "env": { "CGO_ENABLED":"0", "GOOS":"darwin", "DBFILE":"/Users/darcy/Downloads/starkiss/starkiss.db", }
     },
     {
       "name": "Transcoder Debug",
@@ -26,7 +26,7 @@
       "mode": "debug",
       "program": "./transcoder",
       "args": [],
-      "env": { "CGO_ENABLED":"0", "GOOS":"darwin", "DBFILE":"/Users/darcy/dev/stark/starkiss.db", "TRANS_PATH":"/Users/darcy/Downloads/trans", }
+      "env": { "CGO_ENABLED":"0", "GOOS":"darwin", "DBFILE":"/Users/darcy/Downloads/starkiss/starkiss.db", }
     }
   ]
 }

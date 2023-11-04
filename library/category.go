@@ -43,13 +43,20 @@ func CategoryList() ([]Category, error) {
   return categories, nil
 }
 
+func CategoryRead(id string) (*Category, error) {
+  cat := Category {}
+  err := dbRecordRead(&cat, id)
+  if err != nil { return nil, err }
+  return &cat, nil
+}
+
 func CategoryCreate(name string, media_type CategoryMediaType) (*Category, error) {
   // validate inputs
   if !nameValidForDisk(name) { return nil, ErrInvalidName }
   if !categoryMediaTypeValid(media_type) { return nil, ErrInvalidMediaType }
 
   // in DB, verify category doesn't already exist
-  db_exists := categoryNameExists(name)
+  db_exists := CategoryNameExists(name)
   if db_exists { return nil, fmt.Errorf("category named \"%s\" already exists in database", name) }
 
   // on FS, verify category doesn't already exist
@@ -108,13 +115,13 @@ func CategoryUpdate(cat *Category, name string, media_type string) error {
   // if changing type, verify empty
   if media_type_enum != cat.MediaType {
     // verify no children exist
-    empty := categoryIsEmpty(cat.Id)
+    empty := CategoryIsEmpty(cat.Id)
     if empty == false { return fmt.Errorf("cannot change media type of category \"%s\": children exist", cat.Name) }
   }
 
   // if changing name, verify no collisions; then move on disk
   if name != cat.Name {
-    exists := categoryNameExists(name)
+    exists := CategoryNameExists(name)
     if exists { return fmt.Errorf("cannot rename category \"%s\" to \"%s\": name already exists", cat.Name, name) }
     new_disk_path := filepath.Join(mediaPath, name)
     if pathExists(new_disk_path) { return fmt.Errorf("cannot rename category \"%s\" to \"%s\": name already exists on disk", cat.Name, name) }
@@ -126,6 +133,28 @@ func CategoryUpdate(cat *Category, name string, media_type string) error {
   err := dbRecordPatch(cat, map[string]any { "name":name, "media_type":string(media_type_enum) })
   if err != nil { return ErrQueryFailed }
   return nil
+}
+
+// ============================================================================
+// public utilities
+
+func CategoryIdExists(id string) bool {
+  queryRow := dbHandle.QueryRow(`SELECT id FROM categories WHERE id = ? LIMIT 1;`, id)
+  err := queryRow.Scan(&id)
+  return (err == nil)
+}
+
+func CategoryNameExists(name string) bool {
+  queryRow := dbHandle.QueryRow(`SELECT id FROM categories WHERE name = ? LIMIT 1;`, name)
+  err := queryRow.Scan(&name)
+  return (err == nil)
+}
+
+func CategoryIsEmpty(id string) bool {
+  row := dbHandle.QueryRow(`SELECT id FROM metadata WHERE parent_id = ? LIMIT 1;`, id)
+  err := row.Scan(&id)
+  found := (err == nil)
+  return !found
 }
 
 // ============================================================================
@@ -142,25 +171,6 @@ func categoryMediaTypeValid(media_type CategoryMediaType) bool {
     case CategoryMediaTypeMusic  : return true
     default: return false
   }
-}
-
-func categoryIdExists(id string) bool {
-  queryRow := dbHandle.QueryRow(`SELECT id FROM categories WHERE id = ? LIMIT 1;`, id)
-  err := queryRow.Scan(&id)
-  return (err == nil)
-}
-
-func categoryNameExists(name string) bool {
-  queryRow := dbHandle.QueryRow(`SELECT id FROM categories WHERE name = ? LIMIT 1;`, name)
-  err := queryRow.Scan(&name)
-  return (err == nil)
-}
-
-func categoryIsEmpty(id string) bool {
-  row := dbHandle.QueryRow(`SELECT id FROM metadata WHERE parent_id = ? LIMIT 1;`, id)
-  err := row.Scan(&id)
-  found := (err == nil)
-  return !found
 }
 
 // ============================================================================

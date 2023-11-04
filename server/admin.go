@@ -1,7 +1,6 @@
 package main
 
 import (
-  "os"
   "github.com/gofiber/fiber/v2"
   "github.com/daumiller/starkiss/library"
 )
@@ -10,10 +9,10 @@ import (
   1a. admin sets media_path, creates categories
   1b. scanner creates input files
   2.  admin views input files, creates missing stream maps
-  3.  transcoder gets media ready, stores in temporary location
+  3.  transcoder gets media ready, stores parentless metadata ("lost" category)
   4.  admin creates series/season, or artist/album metadata as needed
   5.  admin creates file metadata (edit metadata from inputfile, which will edit or create records)
-  6.  admin completes input file, which moves transcode to final destination, marks metadata as not hidden, and deletes input file
+  6.  admin deletes completed input file
 */
 
 /* Admin web ui components:
@@ -47,38 +46,31 @@ func startupAdminRoutes(server *fiber.App) {
 
   server.Get   ("/admin/metadata/tree",                 adminMetadataTree        ) // list category > metadata > metadata hierarchy
   server.Get   ("/admin/metadata/by-parent/:parent_id", adminMetadataByParentList) // list all metadata for a parent
-  server.Post  ("/admin/metadata",                      adminMetadataCreate      ) // create new metadata (defaults to hidden) (requires a parent id, optionally specify a input-file for read-or-create)
-  server.Delete("/admin/metadata",                      adminMetadataDelete      ) // delete metadata record(s)
+  server.Post  ("/admin/metadata",                      adminMetadataCreate      ) // create metadata record
+  server.Delete("/admin/metadata/:id",                  adminMetadataDelete      ) // delete metadata record (and all files & children, if any)
   server.Post  ("/admin/metadata/:id",                  adminMetadataUpdate      ) // update metadata
 
   server.Get   ("/admin/input-files",             adminInputFileList    ) // list all input files
-  server.Delete("/admin/input-files",             adminInputFileDelete  ) // delete input file(s) (and transcoded file(s), if they exist)
+  server.Delete("/admin/input-file/:id",          adminInputFileDelete  ) // delete input file (and transcoded file(s), if they exist)
   server.Post  ("/admin/input-file/:id/map",      adminInputFileMap     ) // update stream_map
   server.Post  ("/admin/input-file/:id/reset",    adminInputFileReset   ) // reset transcoding values (and delete transcoded file, if exists)
-  server.Post  ("/admin/input-file/:id/complete", adminInputFileComplete) // validate transcoding & metadata, move file to final destination, remove input-file record
 }
 
 // ============================================================================
 // Properties
 
-var PROPERTIES_HIDDEN []string = []string { "jwtkey", "migration_level" }
-
 func adminPropertiesRead(context *fiber.Ctx) error {
-  properties, err := database.PropertyList(DB)
+  properties, err := library.PropertyList()
   if err != nil { return debug500(context, err) }
-
-  for _, key := range PROPERTIES_HIDDEN { delete(properties, key) }
   return context.JSON(properties)
 }
 func adminPropertiesUpdate(context *fiber.Ctx) error {
   updates := map[string]string {}
   if err := context.BodyParser(&updates); err != nil { return context.SendStatus(400) }
 
-  for _, key := range PROPERTIES_HIDDEN { delete(updates, key) }
   for key, value := range updates {
-    err := database.PropertyUpsert(DB, key, value)
+    err := library.PropertySet(key, value)
     if err != nil { return debug500(context, err) }
-    if key == "media_path" { MEDIA_PATH = value }
   }
   return context.SendStatus(200)
 }
@@ -87,25 +79,25 @@ func adminPropertiesUpdate(context *fiber.Ctx) error {
 // Category
 
 func adminCategoryList(context *fiber.Ctx) error {
-  categories, err := database.CategoryList(DB)
+  categories, err := library.CategoryList()
   if err != nil { return debug500(context, err) }
   return context.JSON(categories)
 }
 
 func adminCategoryCreate(context *fiber.Ctx) error {
-  category := database.Category{}
+  category := library.Category{}
   if err := context.BodyParser(&category); err != nil { return context.SendStatus(400) }
   category.Id = ""
-  err := database.TableCreate(DB, &category)
-  if err == database.ErrValidationFailed { return context.SendStatus(400) }
-  if err != nil { return debug500(context, err) }
-  return context.Status(201).JSON(category)
+  result, err := library.CategoryCreate(category.Name, category.MediaType)
+  if err == library.ErrQueryFailed { return context.SendStatus(500) }
+  if err != nil { return context.Status(400).JSON(map[string]string{"error": err.Error()}) }
+  return context.Status(201).JSON(result)
 }
 
 func adminCategoryUpdate(context *fiber.Ctx) error {
   id := context.Params("id")
-  original, err := database.CategoryRead(DB, id)
-  if err == database.ErrNotFound { return context.SendStatus(404) }
+  original, err := library.CategoryRead(id)
+  if err == library.ErrNotFound { return context.SendStatus(404) }
   if err != nil { return debug500(context, err) }
 
   changes := map[string]string {}
@@ -113,18 +105,19 @@ func adminCategoryUpdate(context *fiber.Ctx) error {
   new_name, ok := changes["name"]       ; if !ok { new_name = original.Name              }
   new_type, ok := changes["media_type"] ; if !ok { new_type = string(original.MediaType) }
 
-  err = original.Update(DB, new_name, database.CategoryMediaType(new_type))
-  if err == database.ErrValidationFailed { return context.Status(400).JSON(map[string]string{"error": err.Error()}) }
-  if err != nil { return debug500(context, err) }
+  err = library.CategoryUpdate(original, new_name, new_type)
+  if err == library.ErrQueryFailed { return context.SendStatus(500) }
+  if err != nil { return context.Status(400).JSON(map[string]string{"error": err.Error()}) }
   return context.SendStatus(200)
 }
 
 func adminCategoryDelete(context *fiber.Ctx) error {
   id := context.Params("id")
-  category, err := database.CategoryRead(DB, id)
-  if err == database.ErrNotFound { return context.SendStatus(404) }
+  category, err := library.CategoryRead(id)
+  if err == library.ErrNotFound { return context.SendStatus(404) }
   if err != nil { return debug500(context, err) }
-  err = category.Delete(DB)
+
+  err = library.CategoryDelete(category)
   if err != nil { return debug500(context, err) }
   return context.SendStatus(200)
 }
@@ -132,54 +125,20 @@ func adminCategoryDelete(context *fiber.Ctx) error {
 // ============================================================================
 // Metadata
 
-func isCategory(id string) bool {
-  result := DB.QueryRow(`SELECT id FROM categories WHERE id = ? LIMIT 1;`, id)
-  var found_id string = ""
-  err := result.Scan(&found_id)
-  if err == database.ErrNotFound { return false }
-  if err != nil { return false }
-  return true
-}
-
-type metadataTreeNode struct {
-  Id        string           `json:"id"`
-  Name      string           `json:"name"`
-  MediaType string           `json:"media_type"`
-  Children  []metadataTreeNode `json:"children"` // not a map because want this ordered
-}
-func adminMetadataTreeRecurse(root *metadataTreeNode) error {
-  rows, err := DB.Query(`SELECT id, name_display, media_type FROM metadata WHERE parent_id = ? ORDER BY name_sort;`, root.Id)
-  if err != nil { return err }
-  defer rows.Close()
-
-  for rows.Next() {
-    var id, name, media_type string
-    err = rows.Scan(&id, &name, &media_type)
-    if err != nil { return err }
-
-    if (media_type == "file-video") || (media_type == "file-audio") { continue }
-    child := metadataTreeNode { Id: id, Name: name, MediaType: media_type, Children: []metadataTreeNode{} }
-    err = adminMetadataTreeRecurse(&child)
-    if err != nil { return err }
-
-    root.Children = append(root.Children, child)
-  }
-
-  return nil
-}
 func adminMetadataTree(context *fiber.Ctx) error {
-  lost_items := metadataTreeNode { Id:"lost", Name:"Lost Items", MediaType:"", Children:[]metadataTreeNode{} }
-  err := adminMetadataTreeRecurse(&lost_items)
+  var err error
+  lost_items := library.MetadataTreeNode { Id:"lost", Name:"Lost Items", MediaType:"" }
+  lost_items.Children, err = library.MetadataParentTree("")
   if err != nil { return debug500(context, err) }
 
-  categories, err := database.CategoryList(DB)
+  categories, err := library.CategoryList()
   if err != nil { return debug500(context, err) }
 
-  root_items := make([]*metadataTreeNode, len(categories) + 1)
+  root_items := make([]*library.MetadataTreeNode, len(categories) + 1)
   root_items[0] = &lost_items
   for index, cat := range categories {
-    cat_tree := metadataTreeNode { Id:cat.Id, Name:cat.Name, MediaType:string(cat.MediaType), Children: []metadataTreeNode{} }
-    err = adminMetadataTreeRecurse(&cat_tree)
+    cat_tree := library.MetadataTreeNode { Id:cat.Id, Name:cat.Name, MediaType:string(cat.MediaType) }
+    cat_tree.Children, err = library.MetadataParentTree(cat.Id)
     if err != nil { return debug500(context, err) }
     root_items[index + 1] = &cat_tree
   }
@@ -190,61 +149,62 @@ func adminMetadataTree(context *fiber.Ctx) error {
 func adminMetadataByParentList(context *fiber.Ctx) error {
   parent_id := context.Params("parent_id")
   if parent_id == "lost" { parent_id = "" }
-  metadata_list, err := database.MetadataWhere(DB, `parent_id = ?`, parent_id)
+  metadata_list, err := library.MetadataForParent(parent_id)
   if err != nil { return debug500(context, err) }
   return context.JSON(metadata_list)
 }
 
 func adminMetadataCreate(context *fiber.Ctx) error {
-  metadata := database.Metadata{}
+  metadata := library.Metadata{}
   if err := context.BodyParser(&metadata); err != nil { return context.SendStatus(400) }
-  metadata.Id = ""
-  err := database.TableCreate(DB, &metadata)
-  if err == database.ErrValidationFailed { return context.SendStatus(400) }
-  if err != nil { return debug500(context, err) }
+  err := library.MetadataCreate(&metadata)
+  if err == library.ErrQueryFailed { return debug500(context, err) }
+  if err != nil { return context.Status(400).JSON(map[string]string{"error": err.Error()}) }
   return context.Status(201).JSON(metadata)
 }
 
 func adminMetadataUpdate(context *fiber.Ctx) error {
   id := context.Params("id")
-  original, err := database.MetadataRead(DB, id)
-  if err == database.ErrNotFound { return context.SendStatus(404) }
+  original, err := library.MetadataRead(id)
+  if err == library.ErrNotFound { return context.SendStatus(404) }
   if err != nil { return debug500(context, err) }
 
-  changes := map[string]any {}
+  changes := map[string]string {}
   if err = context.BodyParser(&changes); err != nil { return context.SendStatus(400) }
 
-  err = original.Patch(DB, changes)
-  if err == database.ErrValidationFailed { return context.Status(400).JSON(map[string]string{"error": err.Error()}) }
-  if err != nil { return debug500(context, err) }
+  var ok bool
+  var new_parent       string = "" ; new_parent,       ok = changes["parent_id"]    ; if !ok { new_parent       = original.ParentId    }
+  var new_name_display string = "" ; new_name_display, ok = changes["name_display"] ; if !ok { new_name_display = original.NameDisplay }
+  var new_name_sort    string = "" ; new_name_sort,    ok = changes["name_sort"]    ; if !ok { new_name_sort    = original.NameSort    }
+
+  if new_parent != original.ParentId {
+    err = original.Reparent(new_parent)
+    if err == library.ErrQueryFailed { return debug500(context, err) }
+    if err != nil { return context.Status(400).JSON(map[string]string{"error": err.Error()}) }
+  }
+  if (new_name_display != original.NameDisplay) || (new_name_sort != original.NameSort) {
+    err = original.Rename(new_name_display, new_name_sort)
+    if err == library.ErrQueryFailed { return debug500(context, err) }
+    if err != nil { return context.Status(400).JSON(map[string]string{"error": err.Error()}) }
+  }
+
   return context.Status(200).JSON(original)
 }
 
+type MetadataDeleteRequest struct {
+  DeleteChildren bool `json:"delete_children"`
+}
 func adminMetadataDelete(context *fiber.Ctx) error {
-  id_list := []string{}
-  if err := context.BodyParser(&id_list); err != nil { return context.SendStatus(400) }
-  if len(id_list) == 0 { return context.SendStatus(200) }
+  id := context.Params("id")
+  md, err := library.MetadataRead(id)
+  if err == library.ErrNotFound { return context.SendStatus(404) }
+  if err != nil { return debug500(context, err) }
+  request := MetadataDeleteRequest{}
+  if err := context.BodyParser(&request); err != nil { return context.SendStatus(400) }
 
-  lookup := map[string]*(database.Metadata) {}
-  errors := map[string]string {}
-  for _, id := range id_list {
-    md, err := database.MetadataRead(DB, id)
-    if err == database.ErrNotFound { errors[id] = "not found" ; continue }
-    if err != nil { return debug500(context, err) }
-    lookup[id] = md
-    okay_to_delete, err := md.ValidDelete(DB)
-    if err != nil { return debug500(context, err) }
-    if okay_to_delete == false { errors[id] = "validation failed" ; continue }
-  }
-  if len(errors) > 0 { return context.Status(400).JSON(errors) }
-
-  for _, id := range id_list {
-    md := lookup[id]
-    err := md.Delete(DB)
-    if err != nil { errors[id] = "delete failed" ; continue }
-  }
-  if len(errors) > 0 { return context.Status(500).JSON(errors) }
-
+  err = library.MetadataDelete(md, request.DeleteChildren)
+  if err == library.ErrQueryFailed { return debug500(context, err) }
+  if err != nil { return context.Status(400).JSON(map[string]string{"error": err.Error()}) }
   return context.SendStatus(200)
 }
 
@@ -252,100 +212,46 @@ func adminMetadataDelete(context *fiber.Ctx) error {
 // InputFile
 
 func adminInputFileList(context *fiber.Ctx) error {
-  input_files, err := database.InputFileWhere(DB, "")
+  input_files, err := library.InputFileList()
   if err != nil { return debug500(context, err) }
   return context.JSON(input_files)
 }
 
 func adminInputFileDelete(context *fiber.Ctx) error {
-  id_list := []string{}
-  if err := context.BodyParser(&id_list); err != nil { return context.SendStatus(400) }
-  if len(id_list) == 0 { return context.SendStatus(200) }
+  id := context.Params("id")
+  inp, err := library.InputFileRead(id)
+  if err == library.ErrNotFound { return context.SendStatus(404) }
+  if err != nil { return debug500(context, err) }
 
-  lookup := map[string]*(database.InputFile) {}
-  errors := map[string]string {}
-  for _, id := range id_list {
-    inp, err := database.InputFileRead(DB, id)
-    if err == database.ErrNotFound { errors[id] = "not found" ; continue }
-    if err != nil { return debug500(context, err) }
-    lookup[id] = inp
-    okay_to_delete, err := inp.ValidDelete(DB)
-    if err != nil { return debug500(context, err) }
-    if okay_to_delete == false { errors[id] = "validation failed" ; continue }
-  }
-  if len(errors) > 0 { return context.Status(400).JSON(errors) }
-
-  for _, id := range id_list {
-    inp := lookup[id]
-    err := inp.DeleteTranscodedFile()
-    if err != nil { errors[id] = "delete transcoded file failed" ; continue }
-    err = inp.Delete(DB)
-    if err != nil { errors[id] = "delete failed" ; continue }
-  }
-  if len(errors) > 0 { return context.Status(500).JSON(errors) }
-
+  err = library.InputFileDelete(inp)
+  if err == library.ErrQueryFailed { return debug500(context, err) }
+  if err != nil { return context.Status(400).JSON(map[string]string{"error": err.Error()}) }
   return context.SendStatus(200)
 }
 
 func adminInputFileMap(context *fiber.Ctx) error {
   id := context.Params("id")
-  inp, err := database.InputFileRead(DB, id)
-  if err == database.ErrNotFound { return context.SendStatus(404) }
+  inp, err := library.InputFileRead(id)
+  if err == library.ErrNotFound { return context.SendStatus(404) }
   if err != nil { return debug500(context, err) }
 
-  proposed := inp.Copy()
-  if err = context.BodyParser(&(proposed.StreamMap)); err != nil { return context.SendStatus(400) }
+  stream_map := []int64 {}
+  if err = context.BodyParser(&stream_map); err != nil { return context.SendStatus(400) }
 
-  err = inp.Replace(DB, proposed)
-  if err == database.ErrValidationFailed { return context.Status(400).JSON(map[string]string{"error": err.Error()}) }
-  if err != nil { return debug500(context, err) }
+  err = inp.Remap(stream_map)
+  if err == library.ErrQueryFailed { return debug500(context, err) }
+  if err != nil { return context.Status(400).JSON(map[string]string{"error": err.Error()}) }
   return context.SendStatus(200)
 }
 
 func adminInputFileReset(context *fiber.Ctx) error {
   id := context.Params("id")
-  inp, err := database.InputFileRead(DB, id)
-  if err == database.ErrNotFound { return context.SendStatus(404) }
+  inp, err := library.InputFileRead(id)
+  if err == library.ErrNotFound { return context.SendStatus(404) }
   if err != nil { return debug500(context, err) }
 
-  err = inp.DeleteTranscodedFile()
-  if err != nil { return debug500(context, err) }
-
-  proposed := inp.Copy()
-  proposed.TranscodingCommand     = ""
-  proposed.TranscodingError       = ""
-  proposed.TranscodingTimeStarted = 0
-  proposed.TranscodingTimeElapsed = 0
-  proposed.TranscodedLocation     = ""
-
-  err = inp.Replace(DB, proposed)
-  if err != nil { return debug500(context, err) }
-  return context.SendStatus(200)
-}
-
-func adminInputFileComplete(context *fiber.Ctx) error {
-  // validate transcoding & metadata, move file to final destination, remove input-file record
-  id := context.Params("id")
-  inp, err := database.InputFileRead(DB, id)
-  if err == database.ErrNotFound { return context.SendStatus(404) }
-  if err != nil { return debug500(context, err) }
-
-  // verify transcoding complete
-  if inp.TranscodingError != "" { return context.Status(400).JSON(map[string]string{"error": "transcoding error: " + inp.TranscodingError}) }
-  if inp.TranscodedLocation == "" { return context.Status(400).JSON(map[string]string{"error": "transcoded location not set"}) }
-  _, err = os.Stat(inp.TranscodedLocation)
-  if err != nil { return context.Status(400).JSON(map[string]string{"error": "transcoded file not found"}) }
-
-  // verify metadata created
-  _, err = database.MetadataRead(DB, inp.Id)
-  if err == database.ErrNotFound { return context.Status(400).JSON(map[string]string{"error": "metadata not found"}) }
-  // TODO: verify all metadata fields
-  // TODO: populate metadata record with new ffprobe of transcoded file (and verify compatible)
-
-  // TODO:
-  // move transcoded file to final location
-  // mark metadata as not hidden
-  // remove input-file record
-
+  err = inp.StatusReset()
+  if err == library.ErrQueryFailed { return debug500(context, err) }
+  if err != nil { return context.Status(400).JSON(map[string]string{"error": err.Error()}) }
   return context.SendStatus(200)
 }

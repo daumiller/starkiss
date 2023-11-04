@@ -183,6 +183,13 @@ func InputFileCreate(inp *InputFile) error {
   return nil
 }
 
+func InputFileRead(id string) (*InputFile, error) {
+  inp := InputFile {}
+  err := dbRecordRead(&inp, id)
+  if err != nil { return nil, ErrNotFound }
+  return &inp, nil
+}
+
 func InputFileList() ([]InputFile, error) {
   records, err := dbRecordWhere(&InputFile{}, ``)
   if err != nil { return nil, ErrQueryFailed }
@@ -205,7 +212,7 @@ func InputFileDelete(inp *InputFile) error {
 func InputFileExistsForSource(source_location string) bool {
   queryRow := dbHandle.QueryRow(`SELECT id FROM input_files WHERE source_location = ? LIMIT 1;`, source_location)
   err := queryRow.Scan(&source_location)
-  return (err != nil)
+  return (err == nil)
 }
 
 func InputFileNextForTranscoding() (*InputFile, error) {

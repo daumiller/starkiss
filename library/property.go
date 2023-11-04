@@ -6,6 +6,8 @@ import (
   "strconv"
   "path/filepath"
   "database/sql"
+  "crypto/rand"
+  "encoding/base64"
 )
 
 var ErrInvalidProperty = fmt.Errorf("invalid property")
@@ -55,6 +57,7 @@ func MediaPathGet() (string, error) {
 
   var err error
   mediaPath, err = dbPropertyRead("media_path")
+  if err == ErrNotFound { return "", nil }
   return mediaPath, err
 }
 
@@ -81,12 +84,11 @@ func MediaPathSet(new_path string) error {
     if !pathExists(curr_path) { return fmt.Errorf("cannot move media library, existing path \"%s\" not found: %s", curr_path, err.Error()) }
   }
 
-  if pathExists(new_path) { return fmt.Errorf("cannot move media to \"%s\": path already exists", new_path) }
-
   if new_library {
     err = os.MkdirAll(new_path, 0770)
     if err != nil { return fmt.Errorf("cannot create media library at \"%s\": %s", new_path, err.Error()) }
   } else {
+    if pathExists(new_path) { return fmt.Errorf("cannot move media to \"%s\": path already exists", new_path) }
     err = os.Rename(curr_path, new_path)
     if err != nil { return fmt.Errorf("cannot move media library from \"%s\" to \"%s\": %s", curr_path, new_path, err.Error()) }
   }
@@ -97,7 +99,6 @@ func MediaPathSet(new_path string) error {
   mediaPath = new_path
   return nil
 }
-
 
 // Get current migration level.
 func MigrationLevelGet() (level uint32) {
@@ -116,6 +117,31 @@ func migrationLevelSet(level uint32) (err error) {
   return nil
 }
 
+// Get JWT key.
+func JwtKeyGet() ([]byte, error) {
+  key_base64, err := dbPropertyRead("jwt_key")
+  if err == ErrNotFound {
+    err = jwtKeyReset()
+    if err != nil { return nil, err }
+    key_base64, err = dbPropertyRead("jwt_key")
+  }
+  if err != nil { return nil, err }
+
+  key_bytes := make([]byte, base64.StdEncoding.DecodedLen(len(key_base64)))
+  wrote_length, err := base64.StdEncoding.Decode(key_bytes, []byte(key_base64))
+  if err != nil { return nil, fmt.Errorf("Error decoding jwt_key: %s", err.Error()) }
+  return key_bytes[:wrote_length], nil
+}
+
+func jwtKeyReset() error {
+  key_bytes := make([]byte, 32)
+  _, err := rand.Read(key_bytes)
+  if err != nil { return fmt.Errorf("Error creating JWT key: \"%s\"\n", err.Error()); }
+  key_base64 := base64.StdEncoding.EncodeToString(key_bytes)
+  err = dbPropertyUpsert("jwt_key", key_base64)
+  if err != nil { fmt.Errorf("Error creating JWT key: \"%s\"\n", err.Error()) }
+  return nil
+}
 
 // ============================================================================
 // database interface

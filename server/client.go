@@ -13,19 +13,19 @@ func startupClientRoutes(server *fiber.App) {
 }
 
 func clientServeCategories(context *fiber.Ctx) error {
-  categories, err := database.CategoryList(DB)
+  categories, err := library.CategoryList()
   if err != nil { return debug500(context, err) }
   return context.JSON(categories)
 }
 
 func clientServeListing(context *fiber.Ctx) error {
   id := context.Params("id")
-  cat, err := database.CategoryRead(DB, id)
-  if (err != nil) && (err != database.ErrNotFound) { return debug500(context, err) }
+  cat, err := library.CategoryRead(id)
+  if (err != nil) && (err != library.ErrNotFound) { return debug500(context, err) }
   if err == nil { return clientServeListing_Category(context, cat) }
 
-  md, err := database.MetadataRead(DB, id)
-  if (err != nil) && (err != database.ErrNotFound) { return debug500(context, err) }
+  md, err := library.MetadataRead(id)
+  if (err != nil) && (err != library.ErrNotFound) { return debug500(context, err) }
   if err == nil { return clientServeListing_Metadata(context, md) }
 
   return context.SendStatus(404)
@@ -51,8 +51,8 @@ type ClientListing struct {
   Entries      []ClientListingEntry `json:"entries"`
 }
 
-func clientServeListing_Category(context *fiber.Ctx, cat *database.Category) error {
-  metadata, err := database.MetadataWhere(DB, "(parent_id = ?) AND (hidden = ?)", cat.Id, 0)
+func clientServeListing_Category(context *fiber.Ctx, cat *library.Category) error {
+  metadata, err := library.MetadataForParent(cat.Id)
   if err != nil { return debug500(context, err) }
 
   var listing ClientListing
@@ -64,14 +64,14 @@ func clientServeListing_Category(context *fiber.Ctx, cat *database.Category) err
   listing.Entries      = make([]ClientListingEntry, listing.EntryCount)
 
   switch cat.MediaType {
-    case database.CategoryMediaTypeMovie:  listing.PosterRatio = ClientPosterRatio2x3
-    case database.CategoryMediaTypeMusic:  listing.PosterRatio = ClientPosterRatio1x1
-    case database.CategoryMediaTypeSeries: listing.PosterRatio = ClientPosterRatio2x3
+    case library.CategoryMediaTypeMovie:  listing.PosterRatio = ClientPosterRatio2x3
+    case library.CategoryMediaTypeMusic:  listing.PosterRatio = ClientPosterRatio1x1
+    case library.CategoryMediaTypeSeries: listing.PosterRatio = ClientPosterRatio2x3
   }
 
-  md_ptr := make([]*database.Metadata, len(metadata))
+  md_ptr := make([]*library.Metadata, len(metadata))
   for index := range metadata { md_ptr[index] = &metadata[index] }
-  sort_compare := func(a *database.Metadata, b *database.Metadata) int { return cmp.Compare(a.NameSort, b.NameSort) }
+  sort_compare := func(a *library.Metadata, b *library.Metadata) int { return cmp.Compare(a.NameSort, b.NameSort) }
   slices.SortFunc(md_ptr, sort_compare)
 
   for index, md := range md_ptr {
@@ -83,8 +83,8 @@ func clientServeListing_Category(context *fiber.Ctx, cat *database.Category) err
   return context.JSON(listing)
 }
 
-func clientServeListing_Metadata(context *fiber.Ctx, md *database.Metadata) error {
-  children, err := database.MetadataWhere(DB, "(parent_id = ?) AND (hidden = ?)", md.Id, 0)
+func clientServeListing_Metadata(context *fiber.Ctx, md *library.Metadata) error {
+  children, err := library.MetadataForParent(md.Id)
   if err != nil { return debug500(context, err) }
 
   var listing ClientListing
@@ -97,26 +97,26 @@ func clientServeListing_Metadata(context *fiber.Ctx, md *database.Metadata) erro
 
   scan_series_seasons := false
   switch md.MediaType {
-    case database.MetadataMediaTypeArtist: listing.PosterRatio = ClientPosterRatio1x1
-    case database.MetadataMediaTypeAlbum : listing.PosterRatio = ClientPosterRatio1x1
-    case database.MetadataMediaTypeSeason: listing.PosterRatio = ClientPosterRatio16x9
-    case database.MetadataMediaTypeSeries:
+    case library.MetadataMediaTypeArtist: listing.PosterRatio = ClientPosterRatio1x1
+    case library.MetadataMediaTypeAlbum : listing.PosterRatio = ClientPosterRatio1x1
+    case library.MetadataMediaTypeSeason: listing.PosterRatio = ClientPosterRatio16x9
+    case library.MetadataMediaTypeSeries:
       listing.PosterRatio = ClientPosterRatio16x9
       scan_series_seasons = true
   }
   // a series listing will display 16x9 if only episodes are present, but display 2x3 if any seasons are present
   if scan_series_seasons == true {
     for _, md := range children {
-      if md.MediaType == database.MetadataMediaTypeSeason {
+      if md.MediaType == library.MetadataMediaTypeSeason {
         listing.PosterRatio = ClientPosterRatio2x3
         break
       }
     }
   }
 
-  md_ptr := make([]*database.Metadata, len(children))
+  md_ptr := make([]*library.Metadata, len(children))
   for index := range children { md_ptr[index] = &children[index] }
-  sort_compare := func(a *database.Metadata, b *database.Metadata) int { return cmp.Compare(a.NameSort, b.NameSort) }
+  sort_compare := func(a *library.Metadata, b *library.Metadata) int { return cmp.Compare(a.NameSort, b.NameSort) }
   slices.SortFunc(md_ptr, sort_compare)
 
   for index, md := range md_ptr {

@@ -63,7 +63,7 @@ func (md *Metadata) DiskPath(path_type MetadataPathType) (string, error) {
 
   parent_id := md.ParentId
   for parent_id != "" {
-    if categoryIdExists(parent_id) {
+    if CategoryIdExists(parent_id) {
       cat := Category {}
       err := dbRecordRead(&cat, parent_id)
       if err != nil { return "", fmt.Errorf("category not found: %s", parent_id) }
@@ -99,7 +99,7 @@ func (md *Metadata) Reparent(new_parent_id string) error {
 
   parent_path := mediaPath
   if new_parent_id != "" {
-    if categoryIdExists(new_parent_id) {
+    if CategoryIdExists(new_parent_id) {
       cat := Category {}
       err := dbRecordRead(&cat, new_parent_id)
       if err != nil { return fmt.Errorf("category not found: %s", new_parent_id) }
@@ -193,6 +193,13 @@ func (md *Metadata) Rename(new_name_display string, new_name_sort string) error 
   return nil
 }
 
+func MetadataRead(id string) (*Metadata, error) {
+  md := Metadata {}
+  err := dbRecordRead(&md, id)
+  if err != nil { return nil, err }
+  return &md, nil
+}
+
 func MetadataForParent(parent_id string) ([]Metadata, error) {
   records, err := dbRecordWhere(&Metadata{}, `(parent_id = ?) ORDER BY name_sort ASC`, parent_id)
   if err != nil { return nil, ErrQueryFailed }
@@ -263,20 +270,56 @@ func MetadataDelete(md *Metadata, delete_children bool) error {
   return nil
 }
 
+type MetadataTreeNode struct {
+  Id        string             `json:"id"`
+  Name      string             `json:"name"`
+  MediaType string             `json:"media_type"`
+  Children  []MetadataTreeNode `json:"children"` // not a map because want this ordered
+}
+func MetadataParentTree(parent_id string) ([]MetadataTreeNode, error) {
+  listing := []MetadataTreeNode {}
+  rows, err := dbHandle.Query(`SELECT id, name_display, media_type FROM metadata WHERE parent_id = ? ORDER BY name_sort;`, parent_id)
+  if err != nil { return listing, err }
+  defer rows.Close()
+
+  for rows.Next() {
+    var id, name, media_type string
+    err = rows.Scan(&id, &name, &media_type)
+    if err != nil { return listing, err }
+
+    if (media_type == string(MetadataMediaTypeFileAudio)) || (media_type == string(MetadataMediaTypeFileVideo)) { continue }
+    entry := MetadataTreeNode { Id: id, Name: name, MediaType: media_type, Children: []MetadataTreeNode{} }
+    entry.Children, err = MetadataParentTree(id)
+    if err != nil { return listing, nil }
+
+    listing = append(listing, entry)
+  }
+
+  return listing, nil
+}
+
 /*
-  MetadataTree()
   MetadataSetPoster()
 */
 
 // ============================================================================
-// private utilities
+// public utilities
 
-func metadataIsEmpty(id string) bool {
+func MetadataIdExists(id string) bool {
+  queryRow := dbHandle.QueryRow(`SELECT id FROM metadata WHERE id = ? LIMIT 1;`, id)
+  err := queryRow.Scan(&id)
+  return (err == nil)
+}
+
+func MetadataIsEmpty(id string) bool {
   row := dbHandle.QueryRow(`SELECT id FROM metadata WHERE parent_id = ? LIMIT 1;`, id)
   err := row.Scan(&id)
   found := (err == nil)
   return !found
 }
+
+// ============================================================================
+// private utilities
 
 func metadataMediaTypeValidString(media_type string) bool {
   md_media_type := MetadataMediaType(media_type)
