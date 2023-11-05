@@ -23,14 +23,15 @@ function CategoryEntryCreator(props) {
   const [name, setName] = useState("");
   const [mediaType, setMediaType] = useState("movie");
 
-  const createCategoryEntry = () => {
-    api("category", "POST", { name:name, media_type:mediaType }, true).then((data) => {
-      props.onCategoryCreated(data);
-      setName("");
-      setMediaType("movie");
-    }).catch((error) => {
-      props.onError(`Error \"${error}\" creating category ${name}`);
-    });
+  const createCategoryEntry = async () => {
+    const result = await api("category", "POST", { name:name, media_type:mediaType });
+    if((result.status < 200) || (result.status > 299)) {
+      props.onError(`Error ${(result.body && result.body.error) || result.status} creating category ${name}`);
+      return;
+    }
+    props.onCategoryCreated(result.body);
+    setName("");
+    setMediaType("movie");
   }
 
   return html`
@@ -51,12 +52,13 @@ function CategoryEntryEditor(props) {
   const [name, setName] = useState(props.name);
   const [mediaType, setMediaType] = useState(props.mediaType);
 
-  const updateCategoryEntry = () => {
-    api(`category/${props.catId}`, "POST", { name:name, media_type:mediaType }).then(() => {
-      props.onCategoryUpdated(props.catId, name, mediaType);
-    }).catch((error) => {
-      props.onError(`Error \"${error}\" updating category ${name}`);
-    });
+  const updateCategoryEntry = async () => {
+    const result = await api(`category/${props.catId}`, "POST", { name:name, media_type:mediaType });
+    if((result.status < 200) || (result.status > 299)) {
+      props.onError(`Error ${(result.body && result.body.error) || result.status} updating category`);
+      return;
+    }
+    props.onCategoryUpdated(props.catId, name, mediaType);
   }
 
   const cancelUpdate = () => {
@@ -66,11 +68,12 @@ function CategoryEntryEditor(props) {
 
   const deleteCategoryEntry = () => {
     if(confirm(`Delete category ${props.name}?`) == false) { return; }
-    api(`category/${props.catId}`, "DELETE", false).then(() => {
-      props.onCategoryDeleted(props.catId);
-    }).catch((error) => {
-      props.onError(`Error \"${error}\" deleting category ${props.name}`);
-    });
+    const result = api(`category/${props.catId}`, "DELETE");
+    if((result.status < 200) || (result.status > 299)) {
+      props.onError(`Error ${(result.body && result.body.error) || result.status} updating category ${props.name}`);
+      return;
+    }
+    props.onCategoryDeleted(props.catId);
   };
 
   const isChanged = useMemo(() => {
@@ -133,18 +136,19 @@ function PropertyEditor(props) {
     });
   }, [categories]);
 
-  useEffect(() => {
-    api("categories", "GET", false, true).then((data) => {
-      const new_categories = {};
-      for(let idx=0; idx<data.length; ++idx) {
-        const category = data[idx];
-        new_categories[category.id] = category;
-      }
-      setCategories(new_categories);
-      setError("");
-    }).catch((error) => {
-      setError(`Error \"${error}\" retrieving properties`);
-    });
+  useEffect(async () => {
+    const result = await api("categories", "GET")
+    if((result.status < 200) || (result.status > 299)) {
+      setError(`Error ${(result.body && result.body.error) || result.status} retrieving categories`);
+      return;
+    }
+    const new_categories = {};
+    for(let idx=0; idx<result.body.length; ++idx) {
+      const category = result.body[idx];
+      new_categories[category.id] = category;
+    }
+    setCategories(new_categories);
+    setError("");
   }, []);
 
   return html`

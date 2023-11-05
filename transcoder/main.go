@@ -206,8 +206,6 @@ func runTask(inp *library.InputFile) {
     setFailed(inp, fmt.Sprintf("Unable to determine if output is audio/video"))
     return
   }
-  if output_primary_type == library.FileStreamTypeVideo { output_path = output_path + ".mp4" }
-  if output_primary_type == library.FileStreamTypeAudio { output_path = output_path + ".mp3" }
 
   // ensure this file doesn't already exist
   _, err := os.Stat(output_path)

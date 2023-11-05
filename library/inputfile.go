@@ -58,7 +58,7 @@ func (inp *InputFile) Remap(source_stream_map []int64) error {
   for _, input_stream := range inp.SourceStreams {
     if input_stream.StreamType == FileStreamTypeVideo { has_video = true }
     if input_stream.StreamType == FileStreamTypeAudio { has_audio = true }
-    stream_index_map[input_stream.Index] = &input_stream
+    stream_index_map[input_stream.Index] = &(inp.SourceStreams[input_stream.Index])
   }
   matched_video := false
   matched_audio := false

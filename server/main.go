@@ -15,8 +15,17 @@ var JWT_KEY    []byte  = nil     // JWT key; created or read from DB in properti
 
 // simple debug handler for 500s
 func debug500(context *fiber.Ctx, err error) error {
-  if DEBUG == false { return context.SendStatus(500) }
-  return context.Status(500).SendString(err.Error())
+  if DEBUG == false { return context.Status(500).JSON(map[string]string{"error": "internal server error"}) }
+  return context.Status(500).JSON(map[string]string{"error": err.Error()})
+}
+func json200(context *fiber.Ctx, data interface{}) error {
+  return context.Status(200).JSON(data)
+}
+func json400(context *fiber.Ctx, err error) error {
+  return context.Status(400).JSON(map[string]string{"error": err.Error()})
+}
+func json404(context *fiber.Ctx) error {
+  return context.Status(404).JSON(map[string]string{"error": "record not found"})
 }
 
 func main() {

@@ -40,7 +40,9 @@ func mediaServePoster(context *fiber.Ctx) error {
   if size == "large" { full_path, err = md.DiskPath(library.MetadataPathTypePosterLarge) }
   if err != nil { return debug500(context, err) }
   // TODO: maybe, serve a default image if poster doesn't exist?
-  if _, err := os.Stat(full_path); os.IsNotExist(err) { return context.SendStatus(404) }
+  if _, err := os.Stat(full_path); os.IsNotExist(err) {
+    return context.SendFile("./static/missing." + size + ".png", false)
+  }
 
   return context.SendFile(full_path, false)
 }

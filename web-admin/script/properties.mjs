@@ -9,12 +9,13 @@ import api from "/web-admin/script/api.mjs";
 function PropertyKeyEditor(props) {
   const [value, setValue] = useState(props.value);
 
-  const updateKeyValue = () => {
-    api("properties", "POST", { [props.keyName]:value }).then(() => {
-      props.onUpdate(props.keyName, value);
-    }).catch((error) => {
-      props.onError(`Error \"${error}\" updating ${props.keyName}`);
-    });
+  const updateKeyValue = async () => {
+    const result = await api("properties", "POST", { [props.keyName]:value });
+    if((result.status < 200) || (result.status > 299)) {
+      props.onError(`Error ${(result.body && result.body.error) || result.status} updating ${props.keyName}`);
+      return;
+    }
+    props.onUpdate(props.keyName, value);
   }
 
   const cancelUpdate = () => { setValue(props.value); }
@@ -52,13 +53,14 @@ function PropertyEditor(props) {
     });
   }, [properties]);
 
-  useEffect(() => {
-    api("properties", "GET", false, true).then((data) => {
-      setProperties(data);
-      setError("");
-    }).catch((error) => {
-      setError(`Error \"${error}\" retrieving properties`);
-    });
+  useEffect(async () => {
+    const result = await api("properties", "GET");
+    if((result.status < 200) || (result.status > 299)) {
+      setError(`Error ${(result.body && result.body.error) || result.status} retrieving properties`);
+      return;
+    }
+    setProperties(result.body);
+    setError("");
   }, []);
 
   return html`
