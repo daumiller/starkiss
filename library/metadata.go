@@ -3,6 +3,9 @@ package library
 import (
   "os"
   "fmt"
+  "image"
+  "image/jpeg"
+  "github.com/nfnt/resize"
   "strings"
   "path/filepath"
   "encoding/json"
@@ -128,11 +131,11 @@ func (md *Metadata) Reparent(new_parent_id string) error {
   paths_source := make([]string, 3)
   paths_dest   := make([]string, 3)
   md.ParentId = old_parent_id
-  paths_source[0], _ = md.DiskPath(MetadataPathTypeBase)
+  paths_source[0], _ = md.DiskPath(MetadataPathTypeMedia)
   paths_source[1], _ = md.DiskPath(MetadataPathTypePosterLarge)
   paths_source[2], _ = md.DiskPath(MetadataPathTypePosterSmall)
   md.ParentId = new_parent_id
-  paths_dest[0], _ = md.DiskPath(MetadataPathTypeBase)
+  paths_dest[0], _ = md.DiskPath(MetadataPathTypeMedia)
   paths_dest[1], _ = md.DiskPath(MetadataPathTypePosterLarge)
   paths_dest[2], _ = md.DiskPath(MetadataPathTypePosterSmall)
   md.ParentId = old_parent_id
@@ -190,6 +193,55 @@ func (md *Metadata) Rename(new_name_display string, new_name_sort string) error 
   // update record
   err := dbRecordPatch(md, map[string]any { "name_display":new_name_display, "name_sort":new_name_sort })
   if err != nil { return ErrQueryFailed }
+  return nil
+}
+
+func (md *Metadata) SetPoster(img image.Image) error {
+  // get image sizes
+  large_width  := uint(1)
+  large_height := uint(1)
+  small_width  := uint(1)
+  small_height := uint(1)
+
+  switch(md.MediaType) {
+    case MetadataMediaTypeFileVideo: fallthrough
+    case MetadataMediaTypeSeries   : fallthrough
+    case MetadataMediaTypeSeason   : {
+      large_width  = 360
+      large_height = 540
+      small_width  = 183
+      small_height = 275
+    }
+    case MetadataMediaTypeFileAudio: fallthrough
+    case MetadataMediaTypeArtist   : fallthrough
+    case MetadataMediaTypeAlbum    : {
+      large_width  = 512
+      large_height = 512
+      small_width  = 200
+      small_height = 200
+    }
+  }
+
+  // save large poster
+  large_path, err := md.DiskPath(MetadataPathTypePosterLarge)
+  if err != nil { return err }
+  large_file, err := os.Create(large_path)
+  if err != nil { return err }
+  defer large_file.Close()
+  large_image := resize.Resize(large_width, large_height, img, resize.NearestNeighbor)
+  err = jpeg.Encode(large_file, large_image, nil)
+  if err != nil { return err }
+
+  // save small poster
+  small_path, err := md.DiskPath(MetadataPathTypePosterSmall)
+  if err != nil { return err }
+  small_file, err := os.Create(small_path)
+  if err != nil { return err }
+  defer small_file.Close()
+  small_image := resize.Resize(small_width, small_height, img, resize.NearestNeighbor)
+  err = jpeg.Encode(small_file, small_image, nil)
+  if err != nil { return err }
+
   return nil
 }
 
@@ -297,10 +349,6 @@ func MetadataParentTree(parent_id string) ([]MetadataTreeNode, error) {
 
   return listing, nil
 }
-
-/*
-  MetadataSetPoster()
-*/
 
 // ============================================================================
 // public utilities

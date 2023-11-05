@@ -52,5 +52,17 @@ async function api(path, method, requestBodyJson=null) {
   return { status:status, body:body };
 }
 
-export { dateString, timeString, sizeString };
+async function apiFile(path, method, fileName, fileData) {
+  const formData = new FormData();
+  formData.append(fileName, fileData);
+
+  const fetchOptions = { method:method };
+  fetchOptions.body = formData;
+  const fetchResult = await fetch(`/admin/${path}`, fetchOptions);
+  const status = fetchResult.status;
+  const body   = await fetchResult.json();
+  return { status:status, body:body };
+}
+
+export { dateString, timeString, sizeString, apiFile };
 export default api;

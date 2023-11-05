@@ -1,6 +1,10 @@
 package main
 
 import (
+  "image"
+  _ "image/jpeg"
+  _ "image/png"
+  _ "golang.org/x/image/webp"
   "github.com/gofiber/fiber/v2"
   "github.com/daumiller/starkiss/library"
 )
@@ -19,6 +23,7 @@ func startupAdminRoutes(server *fiber.App) {
   server.Post  ("/admin/metadata",                      adminMetadataCreate      ) // create metadata record
   server.Delete("/admin/metadata/:id",                  adminMetadataDelete      ) // delete metadata record (and all files & children, if any)
   server.Post  ("/admin/metadata/:id",                  adminMetadataUpdate      ) // update metadata
+  server.Post  ("/admin/metadata/:id/poster",           adminMetadataPoster      ) // upload poster image
 
   server.Get   ("/admin/input-files",             adminInputFileList    ) // list all input files
   server.Delete("/admin/input-file/:id",          adminInputFileDelete  ) // delete input file (and transcoded file(s), if they exist)
@@ -161,6 +166,29 @@ func adminMetadataUpdate(context *fiber.Ctx) error {
     if err == library.ErrQueryFailed { return debug500(context, err) }
     if err != nil { return json400(context, err) }
   }
+
+  return json200(context, map[string]string {})
+}
+
+func adminMetadataPoster(context *fiber.Ctx) error {
+  id := context.Params("id")
+  md, err := library.MetadataRead(id)
+  if err == library.ErrNotFound { return json404(context) }
+  if err != nil { return debug500(context, err) }
+
+  file, err := context.FormFile("poster")
+  if err != nil { return json400(context, err) }
+
+  file_handle, err := file.Open()
+  if err != nil { return debug500(context, err) }
+  defer file_handle.Close()
+
+  image, _, err := image.Decode(file_handle)
+  if err != nil { return json400(context, err) }
+
+  err = md.SetPoster(image)
+  if err == library.ErrQueryFailed { return debug500(context, err) }
+  if err != nil { return json400(context, err) }
 
   return json200(context, map[string]string {})
 }

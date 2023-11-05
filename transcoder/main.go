@@ -102,7 +102,10 @@ func getArguments(inp *library.InputFile, primary_type library.FileStreamType) [
   has_subtitle := false
 
   for _, stream_index := range inp.StreamMap {
-    stream := inp.SourceStreams[stream_index]
+    var stream *(library.FileStream) = nil
+    for _, s := range inp.SourceStreams { if s.Index == stream_index { stream = &s ; break } }
+    if stream == nil { fmt.Printf("Error: stream index %d not found in input file %s\n", stream_index, inp.Id) ; os.Exit(-1) }
+
     if stream.StreamType == library.FileStreamTypeVideo    { has_video    = true }
     if stream.StreamType == library.FileStreamTypeSubtitle { has_subtitle = true }
     if stream.StreamType == library.FileStreamTypeAudio {

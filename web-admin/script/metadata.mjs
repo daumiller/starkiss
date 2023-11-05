@@ -1,7 +1,57 @@
 import { h } from "/web-admin/vendor/preact.mjs";
 import { useState, useMemo, useEffect } from "/web-admin/vendor/preact-hooks.mjs";
 import htm from "/web-admin/vendor/htm.mjs"; const html = htm.bind(h);
-import api, { timeString, sizeString } from "/web-admin/script/api.mjs";
+import api, { apiFile, timeString, sizeString } from "/web-admin/script/api.mjs";
+
+const MetadataMediaType = {
+  FILE_VIDEO: "file-video",
+  FILE_AUDIO: "file-audio",
+  SEASON:     "season",
+  SERIES:     "series",
+  ALBUM:      "album",
+  ARTIST:     "artist",
+  MOVIE:      "movie",
+  MUSIC:      "music",
+};
+
+// =============================================================================
+// MetadataGroupCreator
+
+function MetadataGroupCreator(props) {
+  const [displayName, setDisplayName] = useState("");
+  const [mediaType, setMediaType] = useState(props.allowedTypes[0]);
+
+  const createGroup = async function() {
+    const md_record = {};
+    md_record.id           = "";
+    md_record.parent_id    = props.parentId;
+    md_record.media_type   = mediaType;
+    md_record.name_display = displayName;
+    md_record.name_sort    = "";
+    md_record.streams      = [];
+    md_record.duration     = 0;
+    md_record.size         = 0;
+    const result = await api("metadata", "POST", md_record);
+    if((result.status < 200) || (result.status > 299)) {
+      props.setError(`Error creating metadata: ${(result.body && result.body.error) || result.status}`);
+      return;
+    }
+    props.setError("");
+    props.hide();
+    props.refresh();
+  };
+
+  return html`
+  <div style="z-index:5; position:fixed; top:0px;bottom:0px;left:0px;right:0px; background-color:#00000088; display:${props.visible ? "block" : "none" };" >
+    <div style="display:inline-block; border:2px solid #000000; border-radius:12px; background-color:#FFFFFF; min-width:50vw; min-height:50vh;">
+      <button onClick=${props.hide}>Close</button><br />
+      <span><label>Display name: </label><input type="text" value=${displayName} onInput=${(event) => { setDisplayName(event.target.value); }} /></span><br />
+      <span><label>Media type: </label><select name="media_type" value=${mediaType} onInput=${(event) => { setMediaType(event.target.value); }}>${props.allowedTypes.map((type) => { return html`<option value=${type}>${type}</option>`; })}</select></span><br />
+      <button onClick=${createGroup}>Create</button>
+    </div>
+  </div>
+  `;
+}
 
 // =============================================================================
 // MetadataPathSelector
@@ -14,6 +64,18 @@ function treePathForId(tree, id, path=[]) {
       return [...path, entry.id];
     } else if(entry.children) {
       const result = treePathForId(entry, id, [...path, entry.id]);
+      if(result) { return result; }
+    }
+  }
+  return null;
+}
+
+function treeRecordForId(listing, id) {
+  for(let idx=0; idx<listing.length; ++idx) {
+    const entry = listing[idx];
+    if(entry.id == id) { return entry; }
+    if(entry.children) {
+      const result = treeRecordForId(entry.children, id);
       if(result) { return result; }
     }
   }
@@ -41,14 +103,21 @@ function MetadataPathElementSelector(props) {
 
 function MetadataPathSelector(props) {
   const [pathIds, setPathIds] = useState([ props.value ]);
+  const [record, setRecord] = useState(null);
+  const [groupCreatorVisible, setGroupCreatorVisible] = useState(false);
 
   useEffect(() => {
     const new_path_ids = treePathForId(props.tree, props.value);
     if(new_path_ids) {
+      props.setError("");
       setPathIds(new_path_ids);
     } else {
-      props.setError(`Error: could not find path for ${props.value}`);
+      props.setError(`Error: could not find path (1) for ${props.value}`);
+      setRecord(null);
+      return;
     }
+    const new_record = treeRecordForId(props.tree, props.value);
+    setRecord(new_record);
   }, [props.value]);
 
   const pathSelectors = useMemo(() => {
@@ -65,7 +134,7 @@ function MetadataPathSelector(props) {
         const child = children[child_idx];
         if(child.id == currentId) { next_children = child.children; break; }
       }
-      if(!next_children) { props.setError(`Error: could not find path for ${pathIds}`); return null; }
+      if(!next_children) { props.setError(`Error: could not find path (2) for ${pathIds}`); return null; } else { props.setError(""); }
       children = next_children;
     }
     if(children.length > 0) {
@@ -74,11 +143,40 @@ function MetadataPathSelector(props) {
     }
 
     return selectors;
-  }, [pathIds, props.tree]);
+  }, [pathIds]);
+
+  const allowedTypes = useMemo(() => {
+    if(!props.canCreateGroup) { return []; }
+    if(!record) { return []; }
+    if(record.id == "lost") { return []; }
+    if(record.media_type == MetadataMediaType.FILE_VIDEO) { return []; }
+    if(record.media_type == MetadataMediaType.FILE_AUDIO) { return []; }
+    if(record.media_type == MetadataMediaType.MOVIE     ) { return []; }
+    if(record.media_type == MetadataMediaType.ALBUM     ) { return []; }
+    if(record.media_type == MetadataMediaType.SERIES    ) { return [MetadataMediaType.SERIES, MetadataMediaType.SEASON]; }
+    if(record.media_type == MetadataMediaType.SEASON    ) { return []; }
+    if(record.media_type == MetadataMediaType.MUSIC     ) { return [MetadataMediaType.ALBUM, MetadataMediaType.ARTIST]; }
+    if(record.media_type == MetadataMediaType.ARTIST    ) { return [MetadataMediaType.ALBUM]; }
+    if(record.media_type == MetadataMediaType.ALBUM     ) { return []; }
+  }, [record, props.canCreateGroup]);
+
+  const createGroup = () => { setGroupCreatorVisible(true); };
+  const hideGroupCreator = () => { setGroupCreatorVisible(false); }
 
   return html`
     <div class="metadata-path-selector" style="display:flex; flex-direction:row;">
       ${props.tree && pathSelectors}
+      ${props.canCreateGroup && (allowedTypes.length > 0) && html`<button onClick=${createGroup}>Create Group</button>`}
+      ${props.canCreateGroup && (allowedTypes.length > 0) && html`
+        <${MetadataGroupCreator}
+          visible=${groupCreatorVisible}
+          hide=${hideGroupCreator}
+          refresh=${props.refresh}
+          parentId=${props.value}
+          allowedTypes=${allowedTypes}
+          setError=${props.setError}
+        />
+      `}
     </div>
   `;
 }
@@ -134,7 +232,6 @@ function MetadataParentListing(props) {
         <button onClick=${selectNone}>Select None</button>
         <span>(${props.selectedRecords.length} selected)</span>
       </span>
-      <br />
       ${props.records && recordElements}
     </div>
   `;
@@ -183,7 +280,7 @@ function MetadataProperties(props) {
     setSize(record.size);
   }, [props.records]);
 
-  const save = async () => {
+  const doSave = async () => {
     if(props.records.length < 1) { return; }
 
     const api_parent_id = (parentId == "lost") ? "" : parentId;
@@ -193,6 +290,7 @@ function MetadataProperties(props) {
         props.setError(`Error saving metadata: ${(result.body && result.body.error) || result.status}`);
         return;
       }
+      props.setError("");
       props.refresh();
       return;
     }
@@ -203,6 +301,40 @@ function MetadataProperties(props) {
         return;
       }
     }
+    props.setError("");
+    props.refresh();
+  };
+
+  const doDelete = async () => {
+    if(props.records.length < 1) { return; }
+    if(confirm(`Delete ${props.records.length} record(s)?`) == false) { return; }
+
+    for(let idx=0; idx<props.records.length; ++idx) {
+      const result = await api(`metadata/${props.records[idx].id}`, "DELETE", { "delete_children":false });
+      if((result.status < 200) || (result.status > 299)) {
+        props.setError(`Error deleting metadata: ${(result.body && result.body.error) || result.status}`);
+        return;
+      }
+    }
+    props.setError("");
+    props.refresh();
+  };
+
+  const onPosterDrag = (event) => {
+    event.preventDefault();
+  };
+  const onPosterDrop = async (event) => {
+    event.preventDefault();
+    const files = event.dataTransfer.files;
+    if(files.length < 1) { return; }
+    const file = files[0];
+    const result = await apiFile(`metadata/${props.records[0].id}/poster`, "POST", "poster", file);
+    if((result.status < 200) || (result.status > 299)) {
+      props.setError(`Error saving poster: ${(result.body && result.body.error) || result.status}`);
+      return;
+    }
+    props.setError("");
+    props.refresh();
   };
 
   if(props.records.length == 0) { return html`<div class="metadata-properties" style="display:flex; flex-direction:column;"></div>`; }
@@ -210,7 +342,8 @@ function MetadataProperties(props) {
   if(props.records.length > 1) {
     return html`
       <div class="metadata-properties" style="display:flex; flex-direction:column;">
-        <div><button onClick=${save}>Save Changes</button></div>
+        <div><button onClick=${doSave}>Save Changes</button></div>
+        <div><button onClick=${doDelete}>Delete Records</button></div>
         <table>
           <tr>
             <td>Parent</td>
@@ -223,7 +356,8 @@ function MetadataProperties(props) {
 
   return html`
     <div class="metadata-properties" style="display:flex; flex-direction:column;">
-      <div><button onClick=${save}>Save Changes</button></div>
+      <div><button onClick=${doSave}>Save Changes</button></div>
+      <div><button onClick=${doDelete}>Delete Record</button></div>
       <table>
         <tr>
           <td>Parent</td>
@@ -252,7 +386,7 @@ function MetadataProperties(props) {
         <tr>
           <td>Poster</td>
           <td>
-            <img src="/poster/${props.records[0].id}/small" />
+            <img src="/poster/${props.records[0].id}/small?t=${new Date().getTime()}" onDrop=${onPosterDrop} onDragOver=${onPosterDrag} />
           </td>
         </tr>
       </table>
@@ -307,7 +441,7 @@ function MetadataEditor(props) {
       <div style="display:flex; flex-direction:column;">
         <div><button onClick=${refresh}>Refresh</button></div>
         <span class="error">${error || ''}</span>
-        <${MetadataPathSelector} refresh=${refresh} tree=${tree} value=${parentId} onInput=${onParentChanged} setError=${setError} />
+        <${MetadataPathSelector} refresh=${refresh} tree=${tree} value=${parentId} onInput=${onParentChanged} setError=${setError} canCreateGroup=${true} />
         <${MetadataParentListing} refresh=${refresh} records=${parentRecords} selectedRecords=${selectedRecords} setSelectedRecords=${setSelectedRecords} setError=${setError} />
       </div>
       <${MetadataProperties} refresh=${refresh} tree=${tree} records=${selectedRecords} setError=${setError}/>
