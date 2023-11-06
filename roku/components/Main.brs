@@ -8,10 +8,14 @@ function init()
   ' Set initial focus
   m.focusMode = ""
   SetFocusMode("categories")
+  m.initialCategoryLoaded = false
 
   ' Set up event handlers
   m.categories.observeField("selectedCategory", "OnCategoryChanged")
   m.media.observeField("media", "OnMediaChanged")
+  m.player.observeField("state", "OnPlayerStateChanged")
+
+  ' Play startup sound
   if m.sndstart.loadStatus = "ready" then
     OnStartupSoundReady()
   else
@@ -20,7 +24,6 @@ function init()
 end function
 
 function SetFocusMode(mode as String) as void
-  print "SetFocusMode(" + mode + ")"
   if m.focusMode = mode then return
   m.focusMode = mode
 
@@ -57,9 +60,12 @@ function SetFocusMode(mode as String) as void
 end function
 
 function OnCategoryChanged() as void
-  print "OnCategoryChanged: " + m.categories.selectedCategory
   m.media.selectedCategory = m.categories.selectedCategory
-  SetFocusMode("media")
+  if m.initialCategoryLoaded = false then
+    m.initialCategoryLoaded = true
+  else
+    SetFocusMode("media")
+  end if
 end function
 
 function OnMediaChanged() as void
@@ -68,6 +74,13 @@ function OnMediaChanged() as void
   m.player.content = m.media.media
   m.player.control = "play"
   m.player.SetFocus(true)
+end function
+
+function OnPlayerStateChanged() as void
+  if m.player.state = "finished" then
+    ' TODO: if options.ContinuousPlayback = false then SetFocusMode("media") return end if
+    m.media.callFunc("PlayNextEntry")
+  end if
 end function
 
 function OnStartupSoundReady() as void
@@ -88,6 +101,10 @@ function OnKeyEvent(key as String, press as Boolean) as Boolean
 
   if m.focusMode = "media" then
     if key = "left" then
+      SetFocusMode("categories")
+      return true
+    end if
+    if key = "back" then
       SetFocusMode("categories")
       return true
     end if

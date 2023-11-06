@@ -5,6 +5,7 @@
     <field id="selectedCategory" type="string" onChange="OnCategoryChanged" />
     <field id="expanded" type="bool" onChange="OnExpandedChanged" />
     <field id="media" type="node" />
+    <function name="PlayNextEntry" />
   </interface>
 
   <children>

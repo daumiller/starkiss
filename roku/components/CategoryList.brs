@@ -22,7 +22,13 @@ function OnCategoriesLoaded() as void
   end for
 
   m.list.content = listContent
+
+  ' during application startup, focus isn't set until we've loaded categories
   if m.top.expanded = true then m.list.SetFocus(true)
+  ' auto-load first category
+  if (m.top.selectedCategory = "") and (m.catmap.count() > 0) then
+    m.top.selectedCategory = m.catmap[0]
+  end if
 end function
 
 function OnExpandedChanged() as void
@@ -34,7 +40,7 @@ function OnExpandedChanged() as void
         selected_index = index
         exit for
       end if
-    next index
+    end for
   end if
 
   if m.top.expanded = true then
