@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component name="MediaListRequest" extends="Task">
+  <script type="text/brightscript" uri="pkg:/components/MediaListRequest.brs" />
+  <interface>
+
+    <!-- input fields -->
+    <field id="id" type="string" />
+
+    <!-- output fields -->
+    <field id="parentId"    type="string" />
+    <field id="title"       type="string" />
+    <field id="posterRatio" type="string" />
+    <field id="entryCount"  type="string" />
+    <field id="entries"     type="roArray" />
+
+    <!-- generated fields -->
+    <field id="content" type="node" />
+
+  </interface>
+</component>

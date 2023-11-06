@@ -175,11 +175,11 @@ func (md *Metadata) Rename(new_name_display string, new_name_sort string) error 
     paths_source := make([]string, 3)
     paths_dest   := make([]string, 3)
     md.NameSort = old_name_sort
-    paths_source[0], _ = md.DiskPath(MetadataPathTypeBase)
+    paths_source[0], _ = md.DiskPath(MetadataPathTypeMedia)
     paths_source[1], _ = md.DiskPath(MetadataPathTypePosterLarge)
     paths_source[2], _ = md.DiskPath(MetadataPathTypePosterSmall)
     md.NameSort = new_name_sort
-    paths_dest[0], _ = md.DiskPath(MetadataPathTypeBase)
+    paths_dest[0], _ = md.DiskPath(MetadataPathTypeMedia)
     paths_dest[1], _ = md.DiskPath(MetadataPathTypePosterLarge)
     paths_dest[2], _ = md.DiskPath(MetadataPathTypePosterSmall)
     md.NameSort = old_name_sort

@@ -35,7 +35,6 @@ type ClientPosterRatio string
 const (
   ClientPosterRatio1x1  ClientPosterRatio =  "1x1"
   ClientPosterRatio2x3  ClientPosterRatio =  "2x3"
-  ClientPosterRatio16x9 ClientPosterRatio = "16x9"
 )
 type ClientListingEntry struct {
   Id        string `json:"id"`
@@ -64,9 +63,8 @@ func clientServeListing_Category(context *fiber.Ctx, cat *library.Category) erro
   listing.Entries      = make([]ClientListingEntry, listing.EntryCount)
 
   switch cat.MediaType {
-    case library.CategoryMediaTypeMovie:  listing.PosterRatio = ClientPosterRatio2x3
-    case library.CategoryMediaTypeMusic:  listing.PosterRatio = ClientPosterRatio1x1
-    case library.CategoryMediaTypeSeries: listing.PosterRatio = ClientPosterRatio2x3
+    case library.CategoryMediaTypeSeries : fallthrough
+    case library.CategoryMediaTypeMovie  : listing.PosterRatio = ClientPosterRatio2x3
   }
 
   md_ptr := make([]*library.Metadata, len(metadata))
@@ -95,23 +93,9 @@ func clientServeListing_Metadata(context *fiber.Ctx, md *library.Metadata) error
   listing.EntryCount   = len(children)
   listing.Entries      = make([]ClientListingEntry, listing.EntryCount)
 
-  scan_series_seasons := false
   switch md.MediaType {
-    case library.MetadataMediaTypeArtist: listing.PosterRatio = ClientPosterRatio1x1
-    case library.MetadataMediaTypeAlbum : listing.PosterRatio = ClientPosterRatio1x1
-    case library.MetadataMediaTypeSeason: listing.PosterRatio = ClientPosterRatio16x9
-    case library.MetadataMediaTypeSeries:
-      listing.PosterRatio = ClientPosterRatio16x9
-      scan_series_seasons = true
-  }
-  // a series listing will display 16x9 if only episodes are present, but display 2x3 if any seasons are present
-  if scan_series_seasons == true {
-    for _, md := range children {
-      if md.MediaType == library.MetadataMediaTypeSeason {
-        listing.PosterRatio = ClientPosterRatio2x3
-        break
-      }
-    }
+    case library.MetadataMediaTypeSeason: fallthrough
+    case library.MetadataMediaTypeSeries: listing.PosterRatio = ClientPosterRatio2x3
   }
 
   md_ptr := make([]*library.Metadata, len(children))

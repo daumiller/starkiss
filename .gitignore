@@ -2,6 +2,7 @@
 **/*.sum
 **/*.db
 **/*.bak
+**/*.zip
 server/server
 scanner/scanner
 transcoder/transcoder

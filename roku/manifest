@@ -1,0 +1,21 @@
+# https://developer.roku.com/docs/developer-program/getting-started/architecture/channel-manifest.md
+title=starkiss
+major_version=1
+minor_version=0
+build_version=0
+
+# Icon sd:246x140, hd:290x218
+mm_icon_focus_sd=pkg:/images/icon-sd.png
+mm_icon_focus_hd=pkg:/images/icon-hd.png
+
+# Image sd:720x480 max, hd:1280x720 max
+splash_screen_sd=pkg:/images/splash-sd.jpg
+splash_screen_hd=pkg:/images/splash-hd.jpg
+splash_color=#222222
+splash_min_time=1000
+
+# though fhd for video has larger support, fhd for UIs is Roku4+ only
+ui_resolutions=hd
+
+# bs_prof_enabled=true
+confirm_partner_button=1

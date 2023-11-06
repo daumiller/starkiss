@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component name="MediaGrid" extends="Group">
+  <script type="text/brightscript" uri="pkg:/components/MediaGrid.brs" />
+  <interface>
+    <field id="selectedCategory" type="string" onChange="OnCategoryChanged" />
+    <field id="expanded" type="bool" onChange="OnExpandedChanged" />
+    <field id="media" type="node" />
+  </interface>
+
+  <children>
+    <Rectangle id="rect" color="0xFF00FF00" width="1216" height="720">
+      <PosterGrid id="grid" caption1NumLines="1" posterDisplayMode="noScale" itemSpacing="[32,32]" translation="[32, 32]" vertFocusAnimationStyle="floatingFocus" />
+    </Rectangle>
+  </children>
+</component>
