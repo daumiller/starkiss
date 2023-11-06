@@ -1,6 +1,7 @@
 package main
 
 import (
+  "io"
   "os"
   "fmt"
   "time"
@@ -9,6 +10,7 @@ import (
   "strconv"
   "strings"
   "database/sql"
+  "path/filepath"
   "github.com/daumiller/starkiss/library"
   "github.com/schollz/progressbar/v3"
 )
@@ -158,6 +160,55 @@ func getArguments(inp *library.InputFile, primary_type library.FileStreamType) [
   return arguments
 }
 
+func canCopyFile(inp *library.InputFile, output_type library.FileStreamType) bool {
+  if len(inp.SourceStreams) != len(inp.StreamMap) { return false }
+
+  // arguments already setup to do a stream copy for audio-only.
+  // the reason video is separate is because we never want to do mixed codec-transcode + codec-copy during a video transcode,
+  // because those always end up messed up, so either transcode the whole thing, or just copy the file.
+  if output_type == library.FileStreamTypeAudio { return false }
+
+  is_mp4 := filepath.Ext(inp.SourceLocation) == ".mp4"
+  if !is_mp4 { return false }
+
+  video_h264        := true
+  audio_aac_2ch     := true
+  subtitle_mov_text := true
+
+  for _, stream := range inp.SourceStreams {
+    if stream.StreamType == library.FileStreamTypeVideo {
+      if stream.Codec != "h264" { video_h264 = false ; break }
+    }
+    if stream.StreamType == library.FileStreamTypeAudio {
+      if stream.Codec != "aac" { audio_aac_2ch = false ; break }
+      if stream.Channels != 2 { audio_aac_2ch = false ; break }
+    }
+    if stream.StreamType == library.FileStreamTypeSubtitle {
+      if stream.Codec != "mov_text" { subtitle_mov_text = false ; break }
+    }
+  }
+
+  if !video_h264        { return false }
+  if !audio_aac_2ch     { return false }
+  if !subtitle_mov_text { return false }
+  return true
+}
+
+func copyFile(source string, destination string) bool {
+  source_file, err := os.Open(source)
+  if err != nil { return false }
+  defer source_file.Close()
+
+  destination_file, err := os.Create(destination)
+  if err != nil { return false }
+  defer destination_file.Close()
+
+  io.Copy(destination_file, source_file)
+  if err != nil { return false }
+
+  return true
+}
+
 func setReady(inp *library.InputFile, arguments []string) {
   err := inp.StatusSetStarted(time.Now().Unix(), "ffmpeg " + strings.Join(arguments, " "))
   if err != nil { fmt.Printf("Error updating input file: %s\n", err.Error()) ; os.Exit(-1) }
@@ -229,6 +280,16 @@ func runTask(inp *library.InputFile) {
     progressbar.OptionSetWidth(64),
     progressbar.OptionSetDescription("Transcoding"),
   )
+
+  // see if we can copy the file (no transcoding required)
+  if canCopyFile(inp, output_primary_type) {
+    if copyFile(inp.SourceLocation, output_path) {
+      progress_bar.Finish()
+      fmt.Printf("\n")
+      setComplete(inp, output_path, output_name_display, output_name_sort)
+      return
+    }
+  }
 
   // run ffmpeg
   ffmpeg := exec.Command("ffmpeg", arguments...)
