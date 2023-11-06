@@ -1,16 +1,16 @@
 package main
 
 import (
-	"os"
+  "os"
   "fmt"
   "time"
   "bufio"
-	"os/exec"
-	"strconv"
-	"strings"
+  "os/exec"
+  "strconv"
+  "strings"
   "database/sql"
   "github.com/daumiller/starkiss/library"
-	"github.com/schollz/progressbar/v3"
+  "github.com/schollz/progressbar/v3"
 )
 
 var DB *sql.DB = nil
