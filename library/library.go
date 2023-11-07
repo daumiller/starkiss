@@ -65,6 +65,7 @@ func nameGetSortForDisplay(name string) string {
   // lowercase & remove invalid characters
   sort_name := strings.ToLower(name)
   sort_name = InvalidDiskCharacters.ReplaceAllString(sort_name, "")
+  sort_name = strings.TrimSpace(sort_name)
   return sort_name
 }
 

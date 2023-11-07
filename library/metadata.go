@@ -153,6 +153,8 @@ func (md *Metadata) Reparent(new_parent_id string) error {
 
 func (md *Metadata) Rename(new_name_display string, new_name_sort string) error {
   if new_name_sort == "" { new_name_sort = nameGetSortForDisplay(new_name_display) }
+  new_name_sort = strings.TrimSpace(new_name_sort)
+
   if !nameValidForDisk(new_name_sort) { return ErrInvalidName }
 
   if new_name_sort != md.NameSort {

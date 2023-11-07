@@ -88,6 +88,7 @@ func (inp *InputFile) OutputNames() (name_display string, name_sort string, path
   path_base   := filepath.Base(inp.SourceLocation)
   name_display = strings.TrimSuffix(path_base, filepath.Ext(path_base))
   name_sort    = nameGetSortForDisplay(name_display)
+  name_sort    = strings.TrimPrefix(name_sort, "the ") // very basic cleanup, first time InputFile->Metadata only
   path = filepath.Join(mediaPath, name_sort) + output_extension
 
   return name_display, name_sort, path
