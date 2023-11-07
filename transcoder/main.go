@@ -299,19 +299,35 @@ func runTask(inp *library.InputFile) {
   if err != nil { setFailed(inp, fmt.Sprintf("Error starting ffmpeg: %s", err.Error())) ; return }
 
   // monitor progress
+  last_progress_time := time.Now().Unix()
+  any_progress_lines := false
+  failure_timeout_seconds := int64(10)
   ffmpeg_reader := bufio.NewReader(ffmpeg_output)
   for {
     time.Sleep(500 * time.Millisecond) // default stats_period for ffmpeg is 0.5 seconds
     ffmpeg_completed := false
     for {
       line, err := ffmpeg_reader.ReadString('\n')
-      if err != nil { time.Sleep(100 * time.Millisecond); continue }
+      if err == nil {
+        last_progress_time = time.Now().Unix()
+      } else {
+        if (time.Now().Unix() - last_progress_time) > failure_timeout_seconds {
+          if any_progress_lines == false {
+            setFailed(inp, fmt.Sprintf("No progress from ffmpeg in %d seconds", failure_timeout_seconds))
+            ffmpeg.Wait()
+            return
+          }
+        }
+        time.Sleep(100 * time.Millisecond)
+        continue
+      }
 
       // ideally, we'd use "out_time_ms=", but ffmpeg is broken: https://trac.ffmpeg.org/ticket/7345
       if strings.HasPrefix(line, "out_time_us=") {
         timestamp_string := strings.TrimSuffix(strings.TrimPrefix(line, "out_time_us="), "\n")
         timestamp_us, _ := strconv.ParseInt(timestamp_string, 10, 64)
         progress_bar.Set64(timestamp_us / 1000)
+        any_progress_lines = true
       }
       if line == "progress=end\n" { ffmpeg_completed=true ; break }
     }

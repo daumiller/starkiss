@@ -216,7 +216,7 @@ func InputFileExistsForSource(source_location string) bool {
 }
 
 func InputFileNextForTranscoding() (*InputFile, error) {
-  records, err := dbRecordWhere(&InputFile{}, `(transcoding_time_started = 0) AND (stream_map <> '[]') LIMIT 1`)
+  records, err := dbRecordWhere(&InputFile{}, `(transcoding_time_started = 0) AND (stream_map <> '[]') AND (transcoding_error = '') LIMIT 1`)
   if err != nil { return nil, err }
   if len(records) == 0 { return nil, nil }
   return records[0].(*InputFile), nil
