@@ -3,6 +3,7 @@ function init()
   m.list = m.top.findNode("list")
   m.mode = "grid"
   m.parentId = ""
+  m.storedFocusIndex = 0
 end function
 
 function setMode(mode as string) as void
@@ -100,12 +101,14 @@ function OnKeyEvent(key as String, press as Boolean) as Boolean
       node_title = selectedNode.GetField("shortDescriptionLine1")
       node_id    = selectedNode.GetField("shortDescriptionLine2")
       node_type  = selectedNode.GetField("title")
+      m.storedFocusIndex = index
     else
       index = m.list.itemFocused
       selectedNode = m.list.content.GetChild(index)
       node_title = selectedNode.GetField("title")
       node_id    = selectedNode.GetField("shortDescriptionLine2")
       node_type  = selectedNode.GetField("shortDescriptionLine1")
+      m.storedFocusIndex = index
     end if
 
     ' print "Selected node type: " + node_type
@@ -115,7 +118,6 @@ function OnKeyEvent(key as String, press as Boolean) as Boolean
     end if
 
     node_url = m.global.serverAddress + "/media/" + node_id
-    print "Playing " + node_title + " from " + node_url
 
     content = CreateObject("roSGNode", "ContentNode")
     content.url = node_url
@@ -129,25 +131,42 @@ function OnKeyEvent(key as String, press as Boolean) as Boolean
 end function
 
 function PlayNextEntry() as Object
-  container = m.grid
-  if m.mode = "list" then container = m.list
+  node_type  = ""
+  node_id    = ""
+  node_title = ""
+  index = m.storedFocusIndex
 
-  index = container.itemFocused
-  if index = container.content.GetChildCount() - 1 then
-    result = { "next": false }
-    return result
+  if m.mode = "grid" then
+    if index = m.grid.content.GetChildCount() - 1 then
+      result = { "next": false }
+      return result
+    end if
+    m.storedFocusIndex = index + 1
+    m.grid.jumpToItem = m.storedFocusIndex
+
+    selectedNode = m.grid.content.GetChild(index + 1)
+    node_title = selectedNode.GetField("shortDescriptionLine1")
+    node_id    = selectedNode.GetField("shortDescriptionLine2")
+    node_type  = selectedNode.GetField("title")
   end if
-  container.jumpToItem(index + 1)
 
-  selectedNode = container.content.GetChild(index + 1)
-  node_title = selectedNode.GetField("shortDescriptionLine1")
-  node_id    = selectedNode.GetField("shortDescriptionLine2")
-  node_type  = selectedNode.GetField("title")
+  if m.mode = "list" then
+    if index = m.list.content.GetChildCount() - 1 then
+      result = { "next": false }
+      return result
+    end if
+    m.storedFocusIndex = index + 1
+    m.list.jumpToItem = m.storedFocusIndex
+
+    selectedNode = m.list.content.GetChild(index + 1)
+    node_title = selectedNode.GetField("title")
+    node_id    = selectedNode.GetField("shortDescriptionLine2")
+    node_type  = selectedNode.GetField("shortDescriptionLine1")
+  end if
 
   if (node_type <> "file-video") and (node_type <> "file-audio") then return { "next": false }
 
   node_url = m.global.serverAddress + "/media/" + node_id
-    print "Playing " + node_title + " from " + node_url
 
   content = CreateObject("roSGNode", "ContentNode")
   content.url = node_url
