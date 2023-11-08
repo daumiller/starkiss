@@ -180,15 +180,10 @@ function InputFileEditor(props) {
 
     setLoading(true);
     setError("");
-    const promises = [];
+    const errors = [];
     for(let index=0; index<ids.length; ++index) {
       const id = ids[index];
-      promises.push(api(`input-file/${id}/reset`, "POST"));
-    }
-    const results = await Promise.all(promises);
-    const errors = [];
-    for(let index=0; index<results.length; ++index) {
-      const result = results[index];
+      const result = await api(`input-file/${id}/reset`, "POST");
       if((result.status < 200) || (result.status > 299)) {
         errors.push(`Error ${(result.body && result.body.error) || result.status} resetting input file status`);
       }
