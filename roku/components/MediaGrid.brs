@@ -81,6 +81,7 @@ function OnKeyEvent(key as String, press as Boolean) as Boolean
   if (key = "back") then
     if (m.parentId <> "") then
       if (m.parentId <> m.top.selectedCategory) then
+        ' TODO: save & restore parent indices while navigating
         m.top.selectedCategory = m.parentId
       end if
       return true
