@@ -58,7 +58,7 @@ func LibraryShutdown() {
 // Naming Utilities
 
 // characters not allowed in Category.Name, or Metadata.NameSort fields (characters disallowed by exfat, plus some extras)
-var InvalidDiskCharacters *regexp.Regexp = regexp.MustCompile(`[<>:"/\\|?*$!%\` + "`" + `~]`)
+var InvalidDiskCharacters *regexp.Regexp = regexp.MustCompile(`[<>:"/\\|?*$!%\'` + "`" + `~]`)
 
 // for Metadata, get NameSort from a NameDisplay
 func nameGetSortForDisplay(name string) string {

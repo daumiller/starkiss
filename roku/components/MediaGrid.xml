@@ -11,6 +11,7 @@
   <children>
     <Rectangle id="rect" color="0xFF00FF00" width="1216" height="720">
       <PosterGrid id="grid" caption1NumLines="1" posterDisplayMode="noScale" itemSpacing="[32,32]" translation="[32, 32]" vertFocusAnimationStyle="floatingFocus" />
+      <LabelList id="list" itemSize="[1088,70]" translation="[64,16]" numRows="10" vertFocusAnimationStyle="fixedFocusWrap" visible="false" font="font:LargeSystemFont" focusedFont="font:LargeSystemFont" />
     </Rectangle>
   </children>
 </component>

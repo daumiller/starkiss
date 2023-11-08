@@ -138,6 +138,7 @@ func (inp *InputFile) StatusSetSucceeded(time int64) error {
   inp_update := inp.Copy()
   inp_update.TranscodingError = ""
   inp_update.TranscodingTimeElapsed = time - inp.TranscodingTimeStarted
+  if inp_update.TranscodingTimeElapsed < 1 { inp_update.TranscodingTimeElapsed = 1 }
   err := dbRecordReplace(inp, inp_update)
   if err != nil { return ErrQueryFailed }
   return nil

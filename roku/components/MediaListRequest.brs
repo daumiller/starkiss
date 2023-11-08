@@ -36,18 +36,27 @@ function requestMediaList() as void
   m.top.parentId    = json.parent_id
   m.top.title       = json.name
   m.top.posterRatio = json.poster_ratio
+  m.top.listingType = json.listing_type
   m.top.entryCount  = json.entry_count
   m.top.entries     = json.entries
 
   for each entry in json.entries
     node = CreateObject("roSGNode", "ContentNode")
 
-    node.SetFields({
-      shortDescriptionLine1: entry.name,
-      shortDescriptionLine2: entry.id,
-      title: entry.entry_type,
-      hdPosterUrl: m.global.serverAddress + "/poster/" + entry.id + "/small",
-    })
+    if (m.top.listingType = "episodes") or (m.top.listingType = "songs") then
+      node.SetFields({
+        shortDescriptionLine1: entry.entry_type,
+        shortDescriptionLine2: entry.id,
+        title: entry.name,
+      })
+    else
+      node.SetFields({
+        shortDescriptionLine1: entry.name,
+        shortDescriptionLine2: entry.id,
+        title: entry.entry_type,
+        hdPosterUrl: m.global.serverAddress + "/poster/" + entry.id + "/small",
+      })
+    end if
     contentNode.AppendChild(node)
     ' print "Added " + entry.name
     ' print "Type " + entry.entry_type

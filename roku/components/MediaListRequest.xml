@@ -7,10 +7,11 @@
     <field id="id" type="string" />
 
     <!-- output fields -->
-    <field id="parentId"    type="string" />
-    <field id="title"       type="string" />
-    <field id="posterRatio" type="string" />
-    <field id="entryCount"  type="string" />
+    <field id="parentId"    type="string"  />
+    <field id="title"       type="string"  />
+    <field id="posterRatio" type="string"  />
+    <field id="listingType" type="string"  />
+    <field id="entryCount"  type="string"  />
     <field id="entries"     type="roArray" />
 
     <!-- generated fields -->

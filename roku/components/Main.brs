@@ -78,8 +78,9 @@ end function
 
 function OnPlayerStateChanged() as void
   if m.player.state = "finished" then
-    ' TODO: if options.ContinuousPlayback = false then SetFocusMode("media") return end if
-    m.media.callFunc("PlayNextEntry")
+    ' TODO: if options.ContinuousPlayback = false then : SetFocusMode("media") : return : end if
+    result = m.media.callFunc("PlayNextEntry")
+    if result["next"] = false then SetFocusMode("media")
   end if
 end function
 

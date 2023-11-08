@@ -36,6 +36,17 @@ const (
   ClientPosterRatio1x1  ClientPosterRatio =  "1x1"
   ClientPosterRatio2x3  ClientPosterRatio =  "2x3"
 )
+type ClientListingType string
+const (
+  ClientListingTypeMovies   ClientListingType = "movies"
+  ClientListingTypeSeries   ClientListingType = "series"
+  ClientListingTypeSeasons  ClientListingType = "seasons"
+  ClientListingTypeEpisodes ClientListingType = "episodes"
+  ClientListingTypeArtists  ClientListingType = "artists"
+  ClientListingTypeAlbums   ClientListingType = "albums"
+  ClientListingTypeSongs    ClientListingType = "songs"
+  ClientListingTypeInvalid  ClientListingType = "invalid"
+)
 type ClientListingEntry struct {
   Id        string `json:"id"`
   Name      string `json:"name"`
@@ -46,6 +57,7 @@ type ClientListing struct {
   Name         string               `json:"name"`
   ParentId     string               `json:"parent_id"`
   PosterRatio  ClientPosterRatio    `json:"poster_ratio"`
+  ListingType  ClientListingType    `json:"listing_type"`
   EntryCount   int                  `json:"entry_count"`
   Entries      []ClientListingEntry `json:"entries"`
 }
@@ -65,6 +77,12 @@ func clientServeListing_Category(context *fiber.Ctx, cat *library.Category) erro
   switch cat.MediaType {
     case library.CategoryMediaTypeSeries : fallthrough
     case library.CategoryMediaTypeMovie  : listing.PosterRatio = ClientPosterRatio2x3
+  }
+
+  switch cat.MediaType {
+    case library.CategoryMediaTypeMovie  : listing.ListingType = ClientListingTypeMovies
+    case library.CategoryMediaTypeSeries : listing.ListingType = ClientListingTypeSeries
+    case library.CategoryMediaTypeMusic  : listing.ListingType = ClientListingTypeArtists
   }
 
   md_ptr := make([]*library.Metadata, len(metadata))
@@ -96,6 +114,33 @@ func clientServeListing_Metadata(context *fiber.Ctx, md *library.Metadata) error
   switch md.MediaType {
     case library.MetadataMediaTypeSeason: fallthrough
     case library.MetadataMediaTypeSeries: listing.PosterRatio = ClientPosterRatio2x3
+  }
+
+  switch md.MediaType {
+    case library.MetadataMediaTypeFileVideo : listing.ListingType = ClientListingTypeInvalid
+    case library.MetadataMediaTypeFileAudio : listing.ListingType = ClientListingTypeInvalid
+    case library.MetadataMediaTypeSeries    : listing.ListingType = ClientListingTypeSeasons
+    case library.MetadataMediaTypeSeason    : listing.ListingType = ClientListingTypeEpisodes
+    case library.MetadataMediaTypeArtist    : listing.ListingType = ClientListingTypeAlbums
+    case library.MetadataMediaTypeAlbum     : listing.ListingType = ClientListingTypeSongs
+  }
+
+  // A "Series" metadata may be a parent to Seasons, or to Episodes (but not both (yet)).
+  if listing.ListingType == ClientListingTypeSeasons {
+    if len(children) > 0 {
+      if children[0].MediaType == library.MetadataMediaTypeFileVideo {
+        listing.ListingType = ClientListingTypeEpisodes
+      }
+    }
+  }
+
+  // An Artist metadata may be parent to Albums, or to Songs (but not both (yet)).
+  if listing.ListingType == ClientListingTypeAlbums {
+    if len(children) > 0 {
+      if children[0].MediaType == library.MetadataMediaTypeFileAudio {
+        listing.ListingType = ClientListingTypeSongs
+      }
+    }
   }
 
   md_ptr := make([]*library.Metadata, len(children))

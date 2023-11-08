@@ -1,13 +1,41 @@
 function init()
   m.grid = m.top.findNode("grid")
-  m.player = m.top.findNode("player")
+  m.list = m.top.findNode("list")
+  m.mode = "grid"
   m.parentId = ""
 end function
 
-function OnExpandedChanged() as void
-  if m.top.expanded = true then
+function setMode(mode as string) as void
+  m.mode = mode
+end function
+
+function setFocus() as void
+  if m.mode = "grid" then
     m.grid.SetFocus(true)
+  else
+    m.list.SetFocus(true)
   end if
+end function
+
+function setContent(content as Object) as void
+  if m.mode = "grid" then
+    m.grid.content = content
+  else
+    m.list.content = content
+  end if
+end function
+
+function setVisible(visible as Boolean) as void
+  m.grid.visible = false
+  m.list.visible = false
+  if visible = true then
+    if m.mode = "grid" then m.grid.visible = true
+    if m.mode = "list" then m.list.visible = true
+  end if
+end function
+
+function OnExpandedChanged() as void
+  if m.top.expanded = true then setFocus()
 end function
 
 function OnCategoryChanged() as void
@@ -15,11 +43,15 @@ function OnCategoryChanged() as void
   m.getMediaRequest.SetFields({ id: m.top.selectedCategory })
   m.getMediaRequest.ObserveField("content", "OnMediaLoaded")
   m.getMediaRequest.control = "RUN"
-  m.grid.visible = false
+  setVisible(false)
 end function
 
 function OnMediaLoaded() as void
-  m.grid.content = m.getMediaRequest.content
+  setMode("grid")
+  if m.getMediaRequest.listingType = "episodes" then setMode("list")
+  if m.getMediaRequest.listingType = "songs"    then setMode("list")
+
+  setContent(m.getMediaRequest.content)
   m.parentId = m.getMediaRequest.parentId
   if m.getMediaRequest.posterRatio = "2x3" then
     m.grid.SetFields({
@@ -38,7 +70,8 @@ function OnMediaLoaded() as void
       "failedBitmapUri":"pkg:/images/missing.small.1x1.png"
     })
   end if
-  m.grid.visible = true
+  setVisible(true)
+  if m.top.expanded = true then setFocus()
 end function
 
 function OnKeyEvent(key as String, press as Boolean) as Boolean
@@ -57,11 +90,23 @@ function OnKeyEvent(key as String, press as Boolean) as Boolean
   end if
 
   if (key = "OK") or (key = "play") then
-    index = m.grid.itemFocused
-    selectedNode = m.grid.content.GetChild(index)
-    node_title = selectedNode.GetField("shortDescriptionLine1")
-    node_id    = selectedNode.GetField("shortDescriptionLine2")
-    node_type  = selectedNode.GetField("title")
+    node_title = ""
+    node_id    = ""
+    node_type  = ""
+
+    if m.mode = "grid" then
+      index = m.grid.itemFocused
+      selectedNode = m.grid.content.GetChild(index)
+      node_title = selectedNode.GetField("shortDescriptionLine1")
+      node_id    = selectedNode.GetField("shortDescriptionLine2")
+      node_type  = selectedNode.GetField("title")
+    else
+      index = m.list.itemFocused
+      selectedNode = m.list.content.GetChild(index)
+      node_title = selectedNode.GetField("title")
+      node_id    = selectedNode.GetField("shortDescriptionLine2")
+      node_type  = selectedNode.GetField("shortDescriptionLine1")
+    end if
 
     ' print "Selected node type: " + node_type
     if (node_type <> "file-video") and (node_type <> "file-audio") then
@@ -83,17 +128,23 @@ function OnKeyEvent(key as String, press as Boolean) as Boolean
   return false
 end function
 
-function PlayNextEntry() as void
-  index = m.grid.itemFocused
-  if index = m.grid.content.GetChildCount() - 1 then return
-  m.grid.jumpToItem(index + 1)
+function PlayNextEntry() as Object
+  container = m.grid
+  if m.mode = "list" then container = m.list
 
-  selectedNode = m.grid.content.GetChild(index + 1)
+  index = container.itemFocused
+  if index = container.content.GetChildCount() - 1 then
+    result = { "next": false }
+    return result
+  end if
+  container.jumpToItem(index + 1)
+
+  selectedNode = container.content.GetChild(index + 1)
   node_title = selectedNode.GetField("shortDescriptionLine1")
   node_id    = selectedNode.GetField("shortDescriptionLine2")
   node_type  = selectedNode.GetField("title")
 
-  if (node_type <> "file-video") and (node_type <> "file-audio") then return
+  if (node_type <> "file-video") and (node_type <> "file-audio") then return { "next": false }
 
   node_url = m.global.serverAddress + "/media/" + node_id
     print "Playing " + node_title + " from " + node_url
@@ -102,4 +153,7 @@ function PlayNextEntry() as void
   content.url = node_url
   content.title = node_title
   m.top.media = content
+
+  result = { "next": true }
+  return result
 end function

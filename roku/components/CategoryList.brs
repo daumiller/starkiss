@@ -67,29 +67,3 @@ function OnKeyEvent(key as String, press as Boolean) as Boolean
 
   return false
 end function
-
-' sub FocusChanged()
-'   if m.top.isInFocusChain() then
-'     if m.rect.width = 320 then return
-'     m.rect.SetFields({ width: 320 })
-'     m.icon.visible = false
-'     m.list.visible = true
-'     m.list.setFocus(true)
-'     m.list.jumpToItem = 0
-'   else
-'     if m.rect.width = 64 then return
-'     m.rect.SetFields({ width: 64 })
-'     m.icon.visible = true
-'     m.list.visible = false
-'   end if
-' end sub
-
-' current_content_count = list.content.getChildCount()
-' if current_content_count = 1 then return
-' itemContainer = CreateObject("roSGNode", "ContentNode")
-' itemContainer.setFields({ "role":"Content" })
-' item = CreateObject("roSGNode", "ContentNode")
-' item.SetFields({ title: "X" })
-' itemContainer.appendChild(item)
-' list.content = itemContainer
-' list.SetFields({ itemSize:[32,32], numRows:1 })
