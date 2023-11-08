@@ -100,7 +100,7 @@ func getArguments(inp *library.InputFile, primary_type library.FileStreamType) [
   }
 
   has_video    := false
-  has_audio    := false ; audio_mp3 := false
+  has_audio    := false ; audio_mp3 := false ; audio_mono := true
   has_subtitle := false
 
   for _, stream_index := range inp.StreamMap {
@@ -112,7 +112,8 @@ func getArguments(inp *library.InputFile, primary_type library.FileStreamType) [
     if stream.StreamType == library.FileStreamTypeSubtitle { has_subtitle = true }
     if stream.StreamType == library.FileStreamTypeAudio {
       has_audio = true
-      if stream.Codec == "mp3" { audio_mp3 = true }
+      if stream.Codec == "mp3" { audio_mp3  = true  }
+      if stream.Channels > 1   { audio_mono = false }
     }
     arguments = append(arguments, "-map", "0:" + strconv.Itoa(int(stream_index)))
   }
@@ -130,10 +131,9 @@ func getArguments(inp *library.InputFile, primary_type library.FileStreamType) [
   }
   if has_audio {
     if primary_type == library.FileStreamTypeVideo {
-      arguments = append(arguments,
-        "-acodec", "aac",
-        "-ac"    , "2",
-      )
+      arguments = append(arguments, "-acodec", "aac")
+      if  audio_mono { arguments = append(arguments, "-ac", "1") }
+      if !audio_mono { arguments = append(arguments, "-ac", "2") }
     }
     if primary_type == library.FileStreamTypeAudio {
       if audio_mp3 {
@@ -145,9 +145,10 @@ func getArguments(inp *library.InputFile, primary_type library.FileStreamType) [
         arguments = append(arguments,
           "-vn",  // disable video
           "-acodec", "libmp3lame",
-          "-ac"    , "2",
           "-b:a"   , "320k",
         )
+        if  audio_mono { arguments = append(arguments, "-ac", "1") }
+        if !audio_mono { arguments = append(arguments, "-ac", "2") }
       }
     }
   }
@@ -181,7 +182,7 @@ func canCopyFile(inp *library.InputFile, output_type library.FileStreamType) boo
     }
     if stream.StreamType == library.FileStreamTypeAudio {
       if stream.Codec != "aac" { audio_aac_2ch = false ; break }
-      if stream.Channels != 2 { audio_aac_2ch = false ; break }
+      if stream.Channels > 2   { audio_aac_2ch = false ; break }
     }
     if stream.StreamType == library.FileStreamTypeSubtitle {
       if stream.Codec != "mov_text" { subtitle_mov_text = false ; break }
