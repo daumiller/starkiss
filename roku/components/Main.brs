@@ -1,120 +1,111 @@
 function init()
   ' Reference top level components
-  m.categories = m.top.FindNode("categories")
-  m.media = m.top.FindNode("media")
-  m.player = m.top.FindNode("player")
-  m.sndstart = m.top.FindNode("sndstart")
+  m.effectStartup  = m.top.FindNode("effectStartup")
+  m.videoPlayer    = m.top.FindNode("videoPlayer")
+  m.listCategories = m.top.FindNode("listCategories")
+  m.listMedia      = m.top.FindNode("listMedia")
 
   ' Set initial focus
-  m.focusMode = ""
-  SetFocusMode("categories")
-  m.initialCategoryLoaded = false
+  m.focusComponent = ""
+  setFocusComponent("listCategories")
 
   ' Set up event handlers
-  m.categories.observeField("selectedCategory", "OnCategoryChanged")
-  m.media.observeField("media", "OnMediaChanged")
-  m.player.observeField("state", "OnPlayerStateChanged")
+  m.listCategories.observeField("selectedCategory", "OnCategorySet")
+  m.listCategories.observeField("appFocusMover", "OnAppFocusSet_listCategories")
+  m.listMedia.observeField("playerContent", "OnPlayerContentSet")
+  m.listMedia.observeField("appFocusMover", "OnAppFocusSet_listMedia")
+  m.videoPlayer.observeField("state", "OnPlayerStateChanged")
 
   ' Play startup sound
-  if m.sndstart.loadStatus = "ready" then
-    OnStartupSoundReady()
+  if m.effectStartup.loadStatus = "ready" then
+    OnEffectStartupReady()
   else
-    m.sndstart.observeField("loadStatus", "OnStartupSoundReady")
+    m.effectStartup.observeField("loadStatus", "OnEffectStartupReady")
   end if
 end function
 
-function SetFocusMode(mode as String) as void
-  if m.focusMode = mode then return
-  m.focusMode = mode
+function setFocusComponent(component as string) as void
+  m.focusComponent = component
 
-  if m.focusMode = "categories" then
-    m.categories.visible = true
-    m.media.visible = true
-    m.player.visible = false
-    m.media.SetFields({ translation: "[320,0]" })
-    m.categories.expanded = true
-    m.media.expanded = false
+  if m.focusComponent = "listCategories" then
+    m.listCategories.visible = true
+    m.listMedia.visible      = true
+    m.videoPlayer.visible    = false
+    m.listMedia.SetFields({ translation: "[320,0]" })
+    m.listCategories.callFunc("SetExpanded", true)
+    m.listCategories.callFunc("SetFocused", true)
+    m.listMedia.callFunc("SetFocused", false)
+    m.videoPlayer.SetFocus(false)
     return
   end if
 
-  if m.focusMode = "media" then
-    m.categories.visible = true
-    m.media.visible = true
-    m.player.visible = false
-    m.media.SetFields({ translation: "[64,0]" })
-    m.categories.expanded = false
-    m.media.expanded = true
+  if m.focusComponent = "listMedia" then
+    m.listCategories.visible = true
+    m.listMedia.visible      = true
+    m.videoPlayer.visible    = false
+    m.listMedia.SetFields({ translation: "[64,0]" })
+    m.listCategories.callFunc("SetExpanded", false)
+    m.listCategories.callFunc("SetFocused", false)
+    m.listMedia.callFunc("SetFocused", true)
+    m.videoPlayer.SetFocus(false)
     return
   end if
 
-  if m.focusMode = "player" then
-    m.categories.expanded = false
-    m.media.expanded = false
-    m.categories.visible = false
-    m.media.visible = false
-    m.player.visible = true
+  if m.focusComponent = "videoPlayer" then
+    m.listCategories.visible = false
+    m.listMedia.visible      = false
+    m.videoPlayer.visible    = true
+    m.listCategories.callFunc("SetExpanded", false)
+    m.listCategories.callFunc("SetFocused", false)
+    m.listMedia.callFunc("SetFocused", false)
+    m.videoPlayer.SetFocus(true)
     return
   end if
 
-  print "ERROR -> Main.brs: Unknown focus mode: " + mode
+  print "ERROR -> Main.brs: Unknown focus component: " + m.focusComponent
 end function
 
-function OnCategoryChanged() as void
-  m.media.selectedCategory = m.categories.selectedCategory
-  if m.initialCategoryLoaded = false then
-    m.initialCategoryLoaded = true
-  else
-    SetFocusMode("media")
-  end if
+function OnCategorySet() as void
+  m.listMedia.callFunc("SetParentId", m.listCategories.selectedCategory, true)
 end function
 
-function OnMediaChanged() as void
-  print "Playing video: " + m.media.media.GetField("url")
-  SetFocusMode("player")
-  m.player.content = m.media.media
-  m.player.control = "play"
-  m.player.SetFocus(true)
+function OnAppFocusSet_listCategories() as void
+  setFocusComponent(m.listCategories.appFocusMover)
+end function
+
+function OnAppFocusSet_listMedia() as void
+  setFocusComponent(m.listMedia.appFocusMover)
+end function
+
+function OnPlayerContentSet() as void
+  print "Playing media: " + m.listMedia.playerContent.GetField("url")
+  m.videoPlayer.content = m.listMedia.playerContent
+  setFocusComponent("videoPlayer")
+  m.videoPlayer.control = "play"
 end function
 
 function OnPlayerStateChanged() as void
-  if m.player.state = "finished" then
-    ' TODO: if options.ContinuousPlayback = false then : SetFocusMode("media") : return : end if
-    result = m.media.callFunc("PlayNextEntry")
-    if result["next"] = false then SetFocusMode("media")
+  if m.videoPlayer.state = "finished" then
+    if m.global.autoPlay = true then
+      if m.listMedia.callFunc("PlayNext") = true then return
+    end if
+
+    m.videoPlayer.control = "stop"
+    setFocusComponent("listMedia")
   end if
 end function
 
-function OnStartupSoundReady() as void
-  if m.sndstart.loadStatus = "ready" then
-    m.sndstart.control = "play"
-  end if
+function OnEffectStartupReady() as void
+  if m.effectStartup.loadStatus = "ready" then m.effectStartup.control = "play"
 end function
 
 function OnKeyEvent(key as String, press as Boolean) as Boolean
   if press = false then return false
 
-  if m.focusMode = "categories" then
-    if key = "right" then
-      SetFocusMode("media")
-      return true
-    end if
-  end if
-
-  if m.focusMode = "media" then
-    if key = "left" then
-      SetFocusMode("categories")
-      return true
-    end if
+  if m.focusComponent = "videoPlayer" then
     if key = "back" then
-      SetFocusMode("categories")
-      return true
-    end if
-  end if
-
-  if m.focusMode = "player" then
-    if key = "back" then
-      m.player.control = "stop"
-      SetFocusMode("media")
+      m.videoPlayer.control = "stop"
+      setFocusComponent("listMedia")
       return true
     end if
   end if

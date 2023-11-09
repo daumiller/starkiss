@@ -2,14 +2,16 @@
 <component name="CategoryList" extends="Group">
   <script type="text/brightscript" uri="pkg:/components/CategoryList.brs" />
   <interface>
+    <field id="appFocusMover" type="string" alwaysNotify="true" />
     <field id="selectedCategory" type="string" alwaysNotify="true" />
-    <field id="expanded" type="bool" onChange="OnExpandedChanged" />
+    <function name="SetExpanded" />
+    <function name="SetFocused" />
   </interface>
 
   <children>
-    <Rectangle id="rect" color="0x00000088" height="1280" translation="[0,0]">
-      <Label id="icon" text="" width="64" height="720" horizAlign="center" vertAlign="center" translation="[0,0]"><Font role="font" uri="pkg:/fonts/fa6-solid.otf" size="32" /></Label>
-      <LabelList id="list" itemSize="[256,48]" translation="[32,16]" vertFocusAnimationStyle="floatingFocus" visible="false">
+    <Rectangle id="background" color="0x00000088" height="1280" translation="[0,0]">
+      <Label id="iconCollapsed" text="" width="64" height="720" horizAlign="center" vertAlign="center" translation="[0,0]"><Font role="font" uri="pkg:/fonts/fa6-solid.otf" size="32" /></Label>
+      <LabelList id="listCategories" itemSize="[256,48]" translation="[32,16]" vertFocusAnimationStyle="floatingFocus" visible="false">
         <ContentNode role="content"></ContentNode>
       </LabelList>
     </Rectangle>

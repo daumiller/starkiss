@@ -1,14 +1,11 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <component name="Main" extends="Scene">
   <script type="text/brightscript" uri="pkg:/components/Main.brs" />
-  <interface>
-    <function name="SetFocusMode" />
-  </interface>
 
 	<children>
-    <SoundEffect id="sndstart" uri="pkg:/sounds/startup.wav" volume="80" />
-    <Video id="player" width="1280" height="720" translation="[0,0]" visible="false"/>
-    <CategoryList id="categories" />
-    <MediaGrid id="media" />
+    <SoundEffect  id="effectStartup" uri="pkg:/sounds/startup.wav" volume="80" />
+    <Video        id="videoPlayer" width="1280" height="720" translation="[0,0]" visible="false"/>
+    <CategoryList id="listCategories" />
+    <MediaList    id="listMedia" />
   </children>
 </component>

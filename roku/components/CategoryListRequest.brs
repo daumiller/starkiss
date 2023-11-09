@@ -7,8 +7,9 @@ function requestCategoryList() as void
   url.SetUrl(m.global.serverAddress + "/client/categories")
   response = url.GetToString()
 
-  if response.Len() < 0 then
+  if response.Len() < 2 then
     print "Error retrieving category listing"
+    m.top.error = "Error retrieving category listing: empty response"
     m.top.listing = []
     return
   end if
@@ -16,6 +17,7 @@ function requestCategoryList() as void
   json = ParseJson(response)
   if (json = invalid) or (type(json) <> "roArray") then
     print "Error parsing JSON"
+    m.top.error = "Error retrieving category listing: invalid JSON response"
     m.top.listing = []
     return
   end if

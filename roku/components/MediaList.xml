@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component name="MediaList" extends="Group">
+  <script type="text/brightscript" uri="pkg:/components/MediaList.brs" />
+  <interface>
+    <field id="appFocusMover" type="string" alwaysNotify="true" />
+    <field id="playerContent" type="node"   alwaysNotify="true" />
+    <function name="SetParentId" />
+    <function name="SetFocused"  />
+    <function name="PlayNext"    />
+  </interface>
+
+  <children>
+    <Rectangle id="background" color="0xFF00FF00" width="1216" height="720">
+      <PosterGrid  id="listPosters" caption1NumLines="1" posterDisplayMode="noScale" itemSpacing="[32,32]" translation="[32, 32]" vertFocusAnimationStyle="floatingFocus" visible="false" />
+      <LabelList   id="listTitles"  itemSize="[1088,70]" translation="[64,16]" numRows="10" vertFocusAnimationStyle="fixedFocusWrap" visible="false" font="font:LargeSystemFont" focusedFont="font:LargeSystemFont" />
+      <SimpleLabel id="textStatus"  vertOrigin="center" horizOrigin="center" translation="[608,360]" visible="false" text="" />
+    </Rectangle>
+  </children>
+</component>
