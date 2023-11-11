@@ -24,6 +24,8 @@ function init()
   m.listMedia.observeField("appFocusMover", "OnListMedia_FocusChanged")
   m.listMedia.observeField("errorMessage",  "OnListMedia_Error")
   m.videoPlayer.observeField("state", "OnVideoPlayer_StateChanged")
+  m.videoPlayer.playbackActionButtons = [ {text:"Play Next"}, {text:"Restart"} ]
+  m.videoPlayer.observeField("playbackActionButtonSelected", "OnVideoPlayer_PlaybackActionButtonSelected")
   m.settings.observeField("appFocusMover", "OnSettings_FocusChanged")
   m.settings.observeField("errorMessage", "OnSettings_Error")
   m.settings.observeField("serverAddressReset", "OnSettings_ServerAddressReset")
@@ -233,6 +235,17 @@ function OnVideoPlayer_StateChanged() as void
 
     m.videoPlayer.control = "stop"
     setFocusComponent("listMedia")
+  end if
+end function
+
+function OnVideoPlayer_PlaybackActionButtonSelected() as void
+  if m.videoPlayer.playbackActionButtonSelected = 0 then
+    if m.listMedia.callFunc("PlayNext") = true then return
+  end if
+
+  if m.videoPlayer.playbackActionButtonSelected = 1 then
+    m.videoPlayer.control = "stop"
+    m.videoPlayer.control = "play"
   end if
 end function
 

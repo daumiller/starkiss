@@ -4,7 +4,7 @@
 
 	<children>
     <SoundEffect  id="effectStartup" uri="pkg:/sounds/startup.wav" volume="80" />
-    <Video        id="videoPlayer" width="1280" height="720" translation="[0,0]" visible="false"/>
+    <Video        id="videoPlayer" width="1280" height="720" translation="[0,0]" visible="false" />
     <CategoryList id="listCategories" />
     <MediaList    id="listMedia" />
     <Settings     id="settings" visible="false" />

@@ -36,7 +36,7 @@ function OnCategoriesLoaded() as void
 
   ' Grab focus & set initial category
   m.listCategories.content = listContent
-  focusList("categories")
+  setFocusList("categories")
   if m.categoryIds.count() > 0 then m.top.selectedCategory = m.categoryIds[0]
 end function
 
@@ -67,10 +67,10 @@ end function
 
 function SetFocused(focused as boolean) as void
   if focused = false then return
-  focusList(m.focusedList)
+  setFocusList(m.focusedList)
 end function
 
-function focusList(list as string) as void
+function setFocusList(list as string) as void
   m.focusedList = list
   if m.focusedList = "categories" then m.listCategories.SetFocus(true)
   if m.focusedList = "controls"   then m.listControls.SetFocus(true)
@@ -81,7 +81,7 @@ function OnKeyEvent(key as String, press as Boolean) as Boolean
 
   if key = "up" then
     if m.focusedList = "controls" then
-      focusList("categories")
+      setFocusList("categories")
       m.listCategories.jumpToItem = m.listCategories.content.GetChildCount() - 1
       return true
     end if
@@ -89,7 +89,7 @@ function OnKeyEvent(key as String, press as Boolean) as Boolean
 
   if key = "down" then
     if m.focusedList = "categories" then
-      focusList("controls")
+      setFocusList("controls")
       m.listControls.jumpToItem = 0
       return true
     end if
@@ -98,8 +98,9 @@ function OnKeyEvent(key as String, press as Boolean) as Boolean
   if (key = "right") or (key = "back") then
     if m.focusedList = "categories" then m.top.appFocusMover = "listMedia"
     if m.focusedList  = "controls" then
-      index = m.listControls.itemFocused
-      if index = 0 then m.top.appFocusMover = "settings"
+      controlIndex = m.listControls.itemFocused
+      controlNode  = m.listControls.content.GetChild(controlIndex)
+      if controlNode.id = "controlSettings" then m.top.appFocusMover = "settings"
     end if
     return true
   end if
@@ -111,8 +112,9 @@ function OnKeyEvent(key as String, press as Boolean) as Boolean
       m.top.appFocusMover = "listMedia"
     end if
     if m.focusedList = "controls" then
-      index = m.listControls.itemFocused
-      if index = 0 then m.top.appFocusMover = "settings"
+      controlIndex = m.listControls.itemFocused
+      controlNode  = m.listControls.content.GetChild(controlIndex)
+      if controlNode.id = "controlSettings" then m.top.appFocusMover = "settings"
     end if
     return true
   end if

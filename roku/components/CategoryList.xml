@@ -18,7 +18,7 @@
       </LabelList>
       <LabelList id="listControls" itemSize="[256,48]" translation="[32,656]" vertFocusAnimationStyle="floatingFocus" visible="false">
         <ContentNode role="content">
-          <ContentNode title="Settings" />
+          <ContentNode id="controlSettings" title="Settings" />
         </ContentNode>
       </LabelList>
     </Rectangle>
