@@ -89,12 +89,22 @@ end function
 
 ' Listing network request completed. Populate list.
 function onListingLoaded() as void
-  if m.getRequest.error <> "" then
-    print "Error loading listing: " + m.getRequest.error
-    setStatus("Error loading listing: " + m.getRequest.error)
+  if m.getRequest.error.count() > 0 then
+    for index = 0 to m.getRequest.error.count() - 1
+      print "Error: " + m.getRequest.error[index]
+    end for
+    m.top.errorMessage = m.getRequest.error
+    setStatus("error")
     setMode("status")
     return
   end if
+
+  if m.getRequest.content.GetChildCount() = 0 then
+    setStatus("empty")
+    setMode("status")
+    return
+  end if
+
   setStatus("")
 
   if (m.getRequest.listingType = "episodes") or (m.getRequest.listingType = "songs") then
@@ -127,9 +137,38 @@ function onListingLoaded() as void
   if m.isFocused = true then SetFocused(true)
 end function
 
-' Play content.
-function playContent(content as object) as void
-  m.top.playerContent = content
+function activateIndex(index as integer, autoplay as boolean) as boolean
+  node_title = ""
+  node_id    = ""
+  node_type  = ""
+
+  if m.displayMode = "posters" then
+    selectedNode   = m.listPosters.content.GetChild(index)
+    node_title     = selectedNode.GetField("shortDescriptionLine1")
+    node_id        = selectedNode.GetField("shortDescriptionLine2")
+    node_type      = selectedNode.GetField("title")
+  else if m.displayMode = "titles" then
+    selectedNode   = m.listTitles.content.GetChild(index)
+    node_title     = selectedNode.GetField("title")
+    node_id        = selectedNode.GetField("shortDescriptionLine2")
+    node_type      = selectedNode.GetField("shortDescriptionLine1")
+  else
+    return false
+  end if
+
+  if (node_type <> "file-video") and (node_type <> "file-audio") then
+    if autoplay = true then return false
+    pushParent(node_id)
+  else
+    m.playingIndex = index
+    node_url       = m.global.serverAddress + "/media/" + node_id
+    content        = CreateObject("roSGNode", "ContentNode")
+    content.url    = node_url
+    content.title  = node_title
+    m.top.playerContent = content ' start playing
+  end if
+
+  return true
 end function
 
 ' Handle remote presses.
@@ -162,38 +201,8 @@ function OnKeyEvent(key as string, press as boolean) as boolean
   end if
 
   if (key = "OK") or (key = "play") then
-    if m.displayMode = "status" then return true
-
-    node_title = ""
-    node_id    = ""
-    node_type  = ""
-
-    if m.displayMode = "posters" then
-      index          = m.listPosters.itemFocused
-      selectedNode   = m.listPosters.content.GetChild(index)
-      node_title     = selectedNode.GetField("shortDescriptionLine1")
-      node_id        = selectedNode.GetField("shortDescriptionLine2")
-      node_type      = selectedNode.GetField("title")
-      m.playingIndex = index
-    else
-      index          = m.listTitles.itemFocused
-      selectedNode   = m.listTitles.content.GetChild(index)
-      node_title     = selectedNode.GetField("title")
-      node_id        = selectedNode.GetField("shortDescriptionLine2")
-      node_type      = selectedNode.GetField("shortDescriptionLine1")
-      m.playingIndex = index
-    end if
-
-    if (node_type <> "file-video") and (node_type <> "file-audio") then
-      pushParent(node_id)
-    else
-      node_url      = m.global.serverAddress + "/media/" + node_id
-      content       = CreateObject("roSGNode", "ContentNode")
-      content.url   = node_url
-      content.title = node_title
-      playContent(content)
-    end if
-
+    if m.displayMode = "posters" then activateIndex(m.listPosters.itemFocused, false)
+    if m.displayMode = "titles"  then activateIndex(m.listTitles.itemFocused, false)
     return true
   end if
 
@@ -202,39 +211,19 @@ end function
 
 ' Play next entry in listing. (Used by auto-play.)
 function PlayNext() as boolean
-  if m.displayMode = "status" then return true
-
-  node_title = ""
-  node_id    = ""
-  node_type  = ""
-
   if m.displayMode = "posters" then
     if m.playingIndex = (m.listPosters.content.GetChildCount() - 1) then return false
-    m.playingIndex = m.playingIndex + 1
-    m.listPosters.jumpToItem = m.playingIndex
-
-    selectedNode   = m.listPosters.content.GetChild(m.playingIndex)
-    node_title     = selectedNode.GetField("shortDescriptionLine1")
-    node_id        = selectedNode.GetField("shortDescriptionLine2")
-    node_type      = selectedNode.GetField("title")
+    newIndex = m.playingIndex + 1
+    result = activateIndex(newIndex, true)
+    if result = true then m.listPosters.jumpToItem = newIndex
+    return result
+  else if m.displayMode = "titles" then
+    if m.playingIndex = (m.listTitles.content.GetChildCount() - 1) then return false
+    newIndex = m.playingIndex + 1
+    result = activateIndex(newIndex, true)
+    if result = true then m.listTitles.jumpToItem = newIndex
+    return result
   else
-    if m.playingIndex = (m.listPosters.content.GetChildCount() - 1) then return false
-    m.playingIndex = m.playingIndex + 1
-    m.listPosters.jumpToItem = m.playingIndex
-
-    selectedNode   = m.listTitles.content.GetChild(m.playingIndex)
-    node_title     = selectedNode.GetField("title")
-    node_id        = selectedNode.GetField("shortDescriptionLine2")
-    node_type      = selectedNode.GetField("shortDescriptionLine1")
+    return false
   end if
-
-  if (node_type <> "file-video") and (node_type <> "file-audio") then return false
-
-  node_url      = m.global.serverAddress + "/media/" + node_id
-  content       = CreateObject("roSGNode", "ContentNode")
-  content.url   = node_url
-  content.title = node_title
-  playContent(content)
-
-  return true
 end function

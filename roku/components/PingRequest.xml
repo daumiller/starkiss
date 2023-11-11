@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component name="PingRequest" extends="Task">
+  <script type="text/brightscript" uri="pkg:/components/PingRequest.brs" />
+  <interface>
+    <field id="address" type="string" />
+    <field id="success" type="boolean" alwaysNotify="true" />
+  </interface>
+</component>

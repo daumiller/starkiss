@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component name="Settings" extends="Group">
+  <script type="text/brightscript" uri="pkg:/components/Settings.brs" />
+  <interface>
+    <field id="appFocusMover"      type="string"      alwaysNotify="true" />
+    <field id="errorMessage"       type="stringarray" alwaysNotify="true" />
+    <field id="serverAddressReset" type="boolean"     alwaysNotify="true" />
+    <function name="SetFocused" />
+  </interface>
+
+  <children>
+    <Rectangle id="background" color="0xFF00FF00" width="1216" height="720">
+
+      <LabelList id="listSettings" itemSize="[256,48]" translation="[96,128]" vertFocusAnimationStyle="floatingFocus">
+        <ContentNode role="content">
+          <ContentNode id="headerAutoplay"      title="Autoplay" />
+          <ContentNode id="headerServerAddress" title="Server Address" />
+        </ContentNode>
+      </LabelList>
+
+      <Rectangle id="backgroundAutoplay" color="0xFF00FF00" width="720" height="500" translation="[416,128]" visible="false">
+        <RadioButtonList id="radioAutoplay" vertFocusAnimationStyle="floatingFocus">
+          <ContentNode role="content">
+            <ContentNode id="autoplayOn" title="On" />
+            <ContentNode id="autoplayOff" title="Off" />
+          </ContentNode>
+        </RadioButtonList>
+      </Rectangle>
+
+      <Rectangle id="backgroundServer" color="0xFF00FF00" width="720" height="500" translation="[416,128]" visible="false">
+        <Label id="labelServerAddress" text="" />
+        <Button id="buttonServerAddress" text="Reset Server Address" maxWidth="576" translation="[0,32]" />
+      </Rectangle>
+
+    </Rectangle>
+  </children>
+</component>

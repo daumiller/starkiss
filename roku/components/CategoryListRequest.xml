@@ -2,7 +2,7 @@
 <component name="CategoryListRequest" extends="Task">
   <script type="text/brightscript" uri="pkg:/components/CategoryListRequest.brs" />
   <interface>
-    <field id="listing" type="roArray" />
-    <field id="error"   type="string" />
+    <field id="listing" type="array" />
+    <field id="error"   type="stringarray" />
   </interface>
 </component>

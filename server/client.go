@@ -8,8 +8,13 @@ import (
 )
 
 func startupClientRoutes(server *fiber.App) {
-  server.Get("/client/categories", clientServeCategories)
+  server.Get("/client/ping",        clientServePing)
+  server.Get("/client/categories",  clientServeCategories)
   server.Get("/client/listing/:id", clientServeListing)
+}
+
+func clientServePing(context *fiber.Ctx) error {
+  return context.JSON(map[string]string{"message": "pong"})
 }
 
 func clientServeCategories(context *fiber.Ctx) error {

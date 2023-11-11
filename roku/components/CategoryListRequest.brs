@@ -8,20 +8,18 @@ function requestCategoryList() as void
   response = url.GetToString()
 
   if response.Len() < 2 then
-    print "Error retrieving category listing"
-    m.top.error = "Error retrieving category listing: empty response"
+    m.top.error = [ "Error retrieving category listing.", "Response was empty." ]
     m.top.listing = []
     return
   end if
 
   json = ParseJson(response)
   if (json = invalid) or (type(json) <> "roArray") then
-    print "Error parsing JSON"
-    m.top.error = "Error retrieving category listing: invalid JSON response"
+    m.top.error = [ "Error retrieving category listing.", "Response was invalid JSON." ]
     m.top.listing = []
     return
   end if
 
+  m.top.error = []
   m.top.listing = json
-  return
 end function

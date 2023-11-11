@@ -11,8 +11,7 @@ function requestMediaList() as void
   response = url.GetToString()
 
   if response.Len() < 2 then
-    print "Error retrieving media listing"
-    m.top.error       = "Error retrieving media listing: empty response"
+    m.top.error      = [ "Error retrieving media listing.", "Response was empty." ]
     m.top.content     = contentNode
     m.top.parentId    = ""
     m.top.title       = "(error)"
@@ -24,8 +23,7 @@ function requestMediaList() as void
 
   json = ParseJson(response)
   if (json = invalid) or (type(json) <> "roAssociativeArray") then
-    print "Error parsing JSON"
-    m.top.error       = "Error retrieving media listing: invalid JSON response"
+    m.top.error      = [ "Error retrieving media listing.", "Response was invalid JSON." ]
     m.top.content     = contentNode
     m.top.parentId    = ""
     m.top.title       = "(error)"
@@ -62,7 +60,6 @@ function requestMediaList() as void
     contentNode.AppendChild(node)
   end for
 
+  m.top.error   = []
   m.top.content = contentNode
-  m.top.error   = ""
-  return
 end function

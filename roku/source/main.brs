@@ -4,12 +4,6 @@ sub Main()
   screen.setMessagePort(m.port)
 
   scene = screen.CreateScene("Main")
-  globals = screen.getGlobalNode()
-  globals.addFields({
-    "serverAddress": "http://192.168.0.250:4331",
-    "autoPlay": true,
-  })
-
   screen.show()
   scene.setFocus(true)
 

@@ -2,8 +2,9 @@
 <component name="MediaList" extends="Group">
   <script type="text/brightscript" uri="pkg:/components/MediaList.brs" />
   <interface>
-    <field id="appFocusMover" type="string" alwaysNotify="true" />
-    <field id="playerContent" type="node"   alwaysNotify="true" />
+    <field id="appFocusMover" type="string"      alwaysNotify="true" />
+    <field id="playerContent" type="node"        alwaysNotify="true" />
+    <field id="errorMessage"  type="stringarray" alwaysNotify="true" />
     <function name="SetParentId" />
     <function name="SetFocused"  />
     <function name="PlayNext"    />
