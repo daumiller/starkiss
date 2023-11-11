@@ -3,15 +3,18 @@ package main
 import (
   "os"
   "github.com/gofiber/fiber/v2"
+  "github.com/hashicorp/golang-lru/v2"
   "github.com/daumiller/starkiss/library"
 )
 
-func startupMediaRoutes(server *fiber.App) {
-  server.Get("/media/:id",        mediaServeMedia)
-  server.Get("/poster/:id/:size", mediaServePoster)
-}
+var poster_cache *lru.Cache[string, string]
 
-// todo: cache lookups? (https://github.com/hashicorp/golang-lru)
+func startupMediaRoutes(server *fiber.App) {
+  poster_cache, _ = lru.New[string, string](1024)
+  server.Get("/media/:id",          mediaServeMedia)
+  server.Get("/poster/:id/:size",   mediaServePoster)
+  server.Get("/poster/reset-cache", mediaServePosterResetCache)
+}
 
 func mediaServeMedia(context *fiber.Ctx) error {
   id := context.Params("id")
@@ -30,6 +33,10 @@ func mediaServePoster(context *fiber.Ctx) error {
   size := context.Params("size")
   if (size != "small") && (size != "large") { return context.SendStatus(400) }
 
+  cache_path := context.Params("id") + "/" + size
+  disk_path, ok := poster_cache.Get(cache_path)
+  if ok { return context.SendFile(disk_path, false) }
+
   id := context.Params("id")
   md, err := library.MetadataRead(id)
   if err == library.ErrNotFound { return context.SendStatus(404) }
@@ -47,8 +54,16 @@ func mediaServePoster(context *fiber.Ctx) error {
       case library.MetadataMediaTypeSeason    : fallthrough
       case library.MetadataMediaTypeSeries    : poster_aspect = "2x3"
     }
-    return context.SendFile("./static/missing." + size + "." + poster_aspect + ".png", false)
+    missing_location := "./static/missing." + size + "." + poster_aspect + ".png"
+    poster_cache.Add(cache_path, missing_location)
+    return context.SendFile(missing_location, false)
   }
 
+  poster_cache.Add(cache_path, full_path)
   return context.SendFile(full_path, false)
+}
+
+func mediaServePosterResetCache(context *fiber.Ctx) error {
+  poster_cache.Purge()
+  return json200(context, map[string]string {})
 }

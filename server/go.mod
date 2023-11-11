@@ -6,6 +6,7 @@ require (
 	github.com/chzyer/readline v1.5.1
 	github.com/daumiller/starkiss/library v0.0.0-00010101000000-000000000000
 	github.com/gofiber/fiber/v2 v2.50.0
+	github.com/hashicorp/golang-lru/v2 v2.0.7
 	golang.org/x/image v0.13.0
 )
 
