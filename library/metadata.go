@@ -331,6 +331,8 @@ type MetadataTreeNode struct {
   Children  []MetadataTreeNode `json:"children"` // not a map because want this ordered
 }
 func MetadataParentTree(parent_id string) ([]MetadataTreeNode, error) {
+  dbLock.RLock()
+  defer dbLock.RUnlock()
   listing := []MetadataTreeNode {}
   rows, err := dbHandle.Query(`SELECT id, name_display, media_type FROM metadata WHERE parent_id = ? ORDER BY name_sort;`, parent_id)
   if err != nil { return listing, err }
@@ -356,12 +358,16 @@ func MetadataParentTree(parent_id string) ([]MetadataTreeNode, error) {
 // public utilities
 
 func MetadataIdExists(id string) bool {
+  dbLock.RLock()
+  defer dbLock.RUnlock()
   queryRow := dbHandle.QueryRow(`SELECT id FROM metadata WHERE id = ? LIMIT 1;`, id)
   err := queryRow.Scan(&id)
   return (err == nil)
 }
 
 func MetadataIsEmpty(id string) bool {
+  dbLock.RLock()
+  defer dbLock.RUnlock()
   row := dbHandle.QueryRow(`SELECT id FROM metadata WHERE parent_id = ? LIMIT 1;`, id)
   err := row.Scan(&id)
   found := (err == nil)

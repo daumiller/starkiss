@@ -2,8 +2,78 @@ package library
 
 import (
   "os"
+  "time"
+  "sync"
+  "strconv"
+  "math/rand"
   "testing"
 )
+
+func testConcurrency_Reader(test *testing.T, wait_group *sync.WaitGroup) {
+  defer wait_group.Done()
+  time.Sleep(time.Duration(rand.Intn(10)) * time.Millisecond)
+  _, err := InputFileList()
+  if err != nil { test.Fatalf("testConcurrency_Reader: InputFileList failed: %s", err) }
+}
+
+func testConcurrency_Writer(test *testing.T, wait_group *sync.WaitGroup, inp *InputFile) {
+  defer wait_group.Done()
+  time.Sleep(time.Duration(rand.Intn(10)) * time.Millisecond)
+  err := InputFileDelete(inp)
+  if err != nil { test.Fatalf("testConcurrency_Write: InputFileDelete failed: %s", err) }
+}
+
+func TestConcurrency(test *testing.T) {
+  testDbPath := "./test.database"
+  _ = os.Remove(testDbPath)
+
+  err := LibraryStartup(testDbPath)
+  if err != nil { test.Fatalf("TestConcurrency: Open failed: %s", err) }
+  defer os.Remove(testDbPath)
+  defer LibraryShutdown()
+
+  _, err = dbHandle.Exec(`CREATE TABLE input_files (
+    id                       TEXT NOT NULL PRIMARY KEY UNIQUE,
+    source_location          TEXT NOT NULL UNIQUE,
+    source_streams           TEXT NOT NULL,
+    stream_map               TEXT NOT NULL,
+    source_duration          INTEGER NOT NULL,
+    time_scanned             INTEGER NOT NULL,
+    transcoding_command      TEXT NOT NULL,
+    transcoding_time_started INTEGER NOT NULL,
+    transcoding_time_elapsed INTEGER NOT NULL,
+    transcoding_error        TEXT NOT NULL
+  );`)
+  if err != nil { test.Fatalf("TestConcurrency: CREATE TABLE failed: %s", err) }
+
+  // create a bunch of input files
+  inps := make([]InputFile, 1000)
+  for index := 0; index < len(inps); index += 1 {
+    inps[index] = InputFile {
+      Id:                       "id" + strconv.Itoa(index),
+      SourceLocation:           "source_location" + strconv.Itoa(index),
+      SourceStreams:            make([]FileStream, 0),
+      StreamMap:                make([]int64, 0),
+      SourceDuration:           1,
+      TimeScanned:              time.Now().Unix(),
+      TranscodingCommand:       "ffmpeg -i input -c:v libx264 -preset slow -crf 22 -c:a copy output",
+      TranscodingTimeStarted:   time.Now().Unix(),
+      TranscodingTimeElapsed:   int64(index + 1),
+      TranscodingError:         "error",
+    }
+    err := InputFileCreate(&inps[index])
+    if err != nil { test.Fatalf("TestConcurrency: InputFileCreate failed: %s", err) }
+  }
+
+  // concurrently do reads/writes
+  var wait_group sync.WaitGroup
+  for index := 0; index < len(inps); index += 1 {
+    wait_group.Add(2)
+    go testConcurrency_Reader(test, &wait_group)
+    go testConcurrency_Writer(test, &wait_group, &(inps[index]))
+  }
+  wait_group.Wait()
+}
 
 func TestTransactions(test *testing.T) {
   testDbPath := "./test.database"

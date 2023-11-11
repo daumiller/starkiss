@@ -148,6 +148,8 @@ func jwtKeyReset() error {
 
 // Read a key/value from properties.
 func dbPropertyRead(key string) (value string, err error) {
+  dbLock.RLock()
+  defer dbLock.RUnlock()
   row := dbHandle.QueryRow(`SELECT value FROM properties WHERE key = ?;`, key)
   err = row.Scan(&value)
   if err == sql.ErrNoRows { return "", ErrNotFound }
@@ -157,6 +159,8 @@ func dbPropertyRead(key string) (value string, err error) {
 
 // Insert/Update a key/value in properties.
 func dbPropertyUpsert(key string, value string) (err error) {
+  dbLock.Lock()
+  defer dbLock.Unlock()
   result, err := dbHandle.Exec(`INSERT INTO properties (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?;`, key, value, value)
   if err != nil { return ErrQueryFailed }
   affected, err := result.RowsAffected()
@@ -167,6 +171,8 @@ func dbPropertyUpsert(key string, value string) (err error) {
 
 // Delete a key/value from properties.
 func dbPropertyDelete(key string) (err error) {
+  dbLock.Lock()
+  defer dbLock.Unlock()
   result, err := dbHandle.Exec(`DELETE FROM properties WHERE key = ?;`, key)
   if err != nil { return ErrQueryFailed }
   affected, err := result.RowsAffected()
@@ -177,6 +183,8 @@ func dbPropertyDelete(key string) (err error) {
 
 // Read all key/values from properties.
 func dbPropertyList() (properties map[string]string, err error) {
+  dbLock.RLock()
+  defer dbLock.RUnlock()
   properties = map[string]string {}
   rows, err := dbHandle.Query(`SELECT key, value FROM properties;`)
   if err != nil { return nil, ErrQueryFailed }

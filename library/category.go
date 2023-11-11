@@ -139,18 +139,24 @@ func CategoryUpdate(cat *Category, name string, media_type string) error {
 // public utilities
 
 func CategoryIdExists(id string) bool {
+  dbLock.RLock()
+  defer dbLock.RUnlock()
   queryRow := dbHandle.QueryRow(`SELECT id FROM categories WHERE id = ? LIMIT 1;`, id)
   err := queryRow.Scan(&id)
   return (err == nil)
 }
 
 func CategoryNameExists(name string) bool {
+  dbLock.RLock()
+  defer dbLock.RUnlock()
   queryRow := dbHandle.QueryRow(`SELECT id FROM categories WHERE name = ? LIMIT 1;`, name)
   err := queryRow.Scan(&name)
   return (err == nil)
 }
 
 func CategoryIsEmpty(id string) bool {
+  dbLock.RLock()
+  defer dbLock.RUnlock()
   row := dbHandle.QueryRow(`SELECT id FROM metadata WHERE parent_id = ? LIMIT 1;`, id)
   err := row.Scan(&id)
   found := (err == nil)

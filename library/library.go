@@ -4,6 +4,7 @@ import (
   "os"
   "io"
   "fmt"
+  "sync"
   "regexp"
   "strings"
   "database/sql"
@@ -28,6 +29,7 @@ var ErrMediaPathNotDir = fmt.Errorf("media path not a valid directory")
 var dbPath    string  = ""
 var dbHandle  *sql.DB = nil
 var mediaPath string  = ""
+var dbLock    sync.RWMutex
 
 // ============================================================================
 // Library Lifecycle
@@ -128,6 +130,8 @@ func dbOpen() error {
   if err != nil { return err }
 
   if err == nil {
+    dbLock.Lock()
+    defer dbLock.Unlock()
     // sqlite won't complain about an invalid file until you actually attempt to write to it...
     _, err = dbHandle.Exec(`CREATE TABLE is_connection_valid (id INTEGER PRIMARY KEY, name TEXT);`)
     if err != nil { dbClose() ; return err }

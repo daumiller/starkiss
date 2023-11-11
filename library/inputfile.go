@@ -212,6 +212,8 @@ func InputFileDelete(inp *InputFile) error {
 }
 
 func InputFileExistsForSource(source_location string) bool {
+  dbLock.RLock()
+  defer dbLock.RUnlock()
   queryRow := dbHandle.QueryRow(`SELECT id FROM input_files WHERE source_location = ? LIMIT 1;`, source_location)
   err := queryRow.Scan(&source_location)
   return (err == nil)

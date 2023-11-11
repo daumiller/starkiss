@@ -44,6 +44,8 @@ func dbRecordCreate(record dbRecord) (err error) {
   }
 
   query_string := fmt.Sprintf(`INSERT INTO %s (%s) VALUES (%s);`, record.TableName(), strings.Join(columns, ", "), strings.Join(params, ", "))
+  dbLock.Lock()
+  defer dbLock.Unlock()
   result, err := dbHandle.Exec(query_string, values...)
   if err != nil { return err }
   if rows, _ := result.RowsAffected(); rows != 1 { return ErrQueryFailed }
@@ -51,6 +53,8 @@ func dbRecordCreate(record dbRecord) (err error) {
 }
 
 func dbRecordDelete(record dbRecord) (err error) {
+  dbLock.Lock()
+  defer dbLock.Unlock()
   query_string := fmt.Sprintf(`DELETE FROM %s WHERE id = ?;`, record.TableName())
   result, err := dbHandle.Exec(query_string, record.GetId())
   if err != nil { return err }
@@ -73,6 +77,8 @@ func dbRecordReplace(current dbRecord, proposed dbRecord) (err error) {
   }
   values = append(values, current.GetId())
 
+  dbLock.Lock()
+  defer dbLock.Unlock()
   query_string := fmt.Sprintf(`UPDATE %s SET %s WHERE id = ?;`, current.TableName(), strings.Join(columns, ", "))
   result, err := dbHandle.Exec(query_string, values...)
   if err != nil { return err }
@@ -99,6 +105,8 @@ func dbRecordPatch(current dbRecord, patch map[string]any) (err error) {
   }
   values = append(values, current.GetId())
 
+  dbLock.Lock()
+  defer dbLock.Unlock()
   query_string := fmt.Sprintf(`UPDATE %s SET %s WHERE id = ?;`, current.TableName(), strings.Join(columns, ", "))
   result, err := dbHandle.Exec(query_string, values...)
   if err != nil { return err }
@@ -123,6 +131,8 @@ func dbRecordRead(record dbRecord, id string) (err error) {
   addresses := make([]any, len(values))
   for index := range values { addresses[index] = &(values[index]) }
 
+  dbLock.RLock()
+  defer dbLock.RUnlock()
   query_string := fmt.Sprintf(`SELECT %s FROM %s WHERE id = ?;`, strings.Join(columns, ", "), record.TableName())
   result := dbHandle.QueryRow(query_string, id)
   err = result.Scan(addresses...)
@@ -148,6 +158,8 @@ func dbRecordWhere(record dbRecord, where_string string, where_values ...any) (r
   addresses := make([]any, len(values))
   for index := range values { addresses[index] = &(values[index]) }
 
+  dbLock.RLock()
+  defer dbLock.RUnlock()
   if where_string != "" { where_string = fmt.Sprintf(`WHERE %s`, where_string) }
   query_string := fmt.Sprintf(`SELECT %s FROM %s %s ;`, strings.Join(columns, ", "), record.TableName(), where_string)
   rows, err := dbHandle.Query(query_string, where_values...)
