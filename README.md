@@ -1,13 +1,14 @@
-![logo](starkiss.png)
+![logo](readme-images/logo.png)
 
-A minimal media server for Roku streaming (eventually Roku/Web/Mobile).
+**Media server, and client for Roku.**
+- only does AOT transcoding, for minimal client/server requirements
 
 ***Not ready for general use.***
 - not yet documented
 - not well commented
-- not complete
+- kinda clunky
+- no web or mobile clients (yet)
 
-**Why?**
-- focus on AOT transcoding, for minimal client and server requirements
-- no accounts/signups/decisions-I-don't-like (Plex)
-- learn Go, reacquaint with Roku BrightScript/SceneGraph, practice some build-less preact
+---
+
+![screenshot-roku](readme-images/screenshot-roku.jpg)

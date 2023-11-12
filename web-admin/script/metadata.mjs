@@ -427,6 +427,10 @@ function MetadataEditor(props) {
   useEffect(() => { refresh(); }, []);
   useEffect(() => { refresh(); }, [parentId]);
 
+  const clearCache = async () => {
+    await fetch("/poster/reset-cache");
+  };
+
   const onParentChanged = (event) => {
     setSelectedRecords([]);
     setParentId(event.target.value);
@@ -439,7 +443,10 @@ function MetadataEditor(props) {
   return html`
     <div class="metadata-editor" style="display:flex; flex-direction:row;">
       <div style="display:flex; flex-direction:column;">
-        <div><button onClick=${refresh}>Refresh</button></div>
+        <div>
+          <button onClick=${refresh}>Refresh</button>
+          <button onClick=${clearCache}>Clear Cache</button>
+        </div>
         <span class="error">${error || ''}</span>
         <${MetadataPathSelector} refresh=${refresh} tree=${tree} value=${parentId} onInput=${onParentChanged} setError=${setError} canCreateGroup=${true} />
         <${MetadataParentListing} refresh=${refresh} records=${parentRecords} selectedRecords=${selectedRecords} setSelectedRecords=${setSelectedRecords} setError=${setError} />
