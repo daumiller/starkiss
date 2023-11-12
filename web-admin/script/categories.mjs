@@ -38,6 +38,7 @@ function CategoryEntryCreator(props) {
     <tr>
       <td><input type="text" name="name" value=${name} onInput=${(event) => { setName(event.target.value); }} /></td>
       <td><${MediaTypeSelector} value=${mediaType} onInput=${(event) => { setMediaType(event.target.value); }} /></td>
+      <td></td>
       <td>
         <button onClick=${createCategoryEntry} disabled=${name.trim().length < 1}>Create</button>
       </td>
@@ -51,9 +52,10 @@ function CategoryEntryCreator(props) {
 function CategoryEntryEditor(props) {
   const [name, setName] = useState(props.name);
   const [mediaType, setMediaType] = useState(props.mediaType);
+  const [sortIndex, setSortIndex] = useState(props.sortIndex);
 
   const updateCategoryEntry = async () => {
-    const result = await api(`category/${props.catId}`, "POST", { name:name, media_type:mediaType });
+    const result = await api(`category/${props.catId}`, "POST", { name:name, media_type:mediaType, sort_index:(sortIndex | 0) });
     if((result.status < 200) || (result.status > 299)) {
       props.onError(`Error ${(result.body && result.body.error) || result.status} updating category`);
       return;
@@ -64,6 +66,7 @@ function CategoryEntryEditor(props) {
   const cancelUpdate = () => {
     setName(props.name);
     setMediaType(props.mediaType);
+    setSortIndex(props.sortIndex);
   }
 
   const deleteCategoryEntry = () => {
@@ -77,13 +80,14 @@ function CategoryEntryEditor(props) {
   };
 
   const isChanged = useMemo(() => {
-    return (name != props.name) || (mediaType != props.mediaType);
-  }, [name, mediaType, props.name, props.mediaType]);
+    return (name != props.name) || (mediaType != props.mediaType) || (sortIndex !== props.sortIndex);
+  }, [name, mediaType, sortIndex, props.name, props.mediaType, props.sortIndex]);
 
   return html`
     <tr>
       <td><input type="text" name="name" value=${name} onInput=${(event) => { setName(event.target.value); }} /></td>
       <td><${MediaTypeSelector} value=${mediaType} onInput=${(event) => { setMediaType(event.target.value); }} /></td>
+      <td><input type="text" name="sortIndex" value=${sortIndex} onInput=${(event) => { setSortIndex(event.target.value | 0); }} style="max-width:64px; text-align:center;" /></td>
       <td>
         <button onClick=${updateCategoryEntry} disabled=${!isChanged}>Update</button>
         <button onClick=${cancelUpdate}        disabled=${!isChanged}>Cancel</button>
@@ -129,6 +133,7 @@ function PropertyEditor(props) {
           catId=${key}
           name=${value.name}
           mediaType=${value.media_type}
+          sortIndex=${value.sort_index}
           onCategoryUpdated=${onCategoryUpdated}
           onCategoryDeleted=${onCategoryDeleted}
           onError=${onError}

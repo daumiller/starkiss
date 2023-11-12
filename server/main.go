@@ -41,6 +41,7 @@ func main() {
   startupCommands()
 
   // update database to latest migration (creating DB if necessary)
+  // TODO: need an option (environment variable?) to skip auto-migration
   exit_code := startupMigration("latest")
   if exit_code != 0 { os.Exit(exit_code) }
 

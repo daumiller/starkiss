@@ -11,6 +11,7 @@ type Migration interface {
 var Migrations []Migration = []Migration {
   &migration0000{},
   &migration0001{},
+  &migration0002{},
 }
 
 // ============================================================================

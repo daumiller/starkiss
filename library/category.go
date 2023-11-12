@@ -16,6 +16,7 @@ type Category struct {
   Id        string            `json:"id"`
   MediaType CategoryMediaType `json:"media_type"`
   Name      string            `json:"name"`
+  SortIndex int64             `json:"sort_index"`
 }
 
 var ErrInvalidMediaType = fmt.Errorf("invalid media type")
@@ -28,6 +29,7 @@ func (cat *Category) Copy() (*Category) {
   copy.Id        = cat.Id
   copy.MediaType = cat.MediaType
   copy.Name      = cat.Name
+  copy.SortIndex = cat.SortIndex
   return &copy
 }
 
@@ -36,7 +38,7 @@ func (cat *Category) DiskPath() string {
 }
 
 func CategoryList() ([]Category, error) {
-  records, err := dbRecordWhere(&Category{}, `(id <> '') ORDER BY name ASC`)
+  records, err := dbRecordWhere(&Category{}, `(id <> '') ORDER BY sort_index ASC, name ASC`)
   if err != nil { return nil, ErrQueryFailed }
   categories := make([]Category, len(records))
   for index, record := range records { categories[index] = *(record.(*Category)) }
@@ -68,7 +70,7 @@ func CategoryCreate(name string, media_type CategoryMediaType) (*Category, error
   if err != nil { return nil, fmt.Errorf("error creating category \"%s\" on disk: %s", name, err.Error()) }
 
   // create category in DB
-  cat := Category { Name:name, MediaType:media_type }
+  cat := Category { Name:name, MediaType:media_type, SortIndex:9999 }
   err = dbRecordCreate(&cat)
   if err != nil { return nil, ErrQueryFailed }
   return &cat, nil
@@ -131,6 +133,12 @@ func CategoryUpdate(cat *Category, name string, media_type string) error {
 
   // update record
   err := dbRecordPatch(cat, map[string]any { "name":name, "media_type":string(media_type_enum) })
+  if err != nil { return ErrQueryFailed }
+  return nil
+}
+
+func CategoryReindex(cat *Category, index int64) error {
+  err := dbRecordPatch(cat, map[string]any { "sort_index":index })
   if err != nil { return ErrQueryFailed }
   return nil
 }
@@ -201,6 +209,7 @@ func (cat *Category) FieldsRead() (fields map[string]any, err error) {
   fields["id"]         = cat.Id
   fields["media_type"] = string(cat.MediaType)
   fields["name"]       = cat.Name
+  fields["sort_index"] = cat.SortIndex
   return fields, nil
 }
 
@@ -208,6 +217,7 @@ func (cat *Category) FieldsReplace(fields map[string]any) (err error) {
   cat.Id        = fields["id"].(string)
   cat.MediaType = CategoryMediaType(fields["media_type"].(string))
   cat.Name      = fields["name"].(string)
+  cat.SortIndex = fields["sort_index"].(int64)
   return nil
 }
 
@@ -215,6 +225,7 @@ func (cat *Category) FieldsPatch(fields map[string]any) (err error) {
   if id,         ok := fields["id"]         ; ok { cat.Id        = id.(string)                            }
   if media_type, ok := fields["media_type"] ; ok { cat.MediaType = CategoryMediaType(media_type.(string)) }
   if name,       ok := fields["name"]       ; ok { cat.Name      = name.(string)                          }
+  if sort_index, ok := fields["sort_index"] ; ok { cat.SortIndex = sort_index.(int64)                     }
   return nil
 }
 
@@ -226,6 +237,7 @@ func (cat_a *Category) FieldsDifference(other dbRecord) (diff map[string]any, er
   if cat_a.Id        != cat_b.Id        { diff["id"]         = cat_b.Id                }
   if cat_a.MediaType != cat_b.MediaType { diff["media_type"] = string(cat_b.MediaType) }
   if cat_a.Name      != cat_b.Name      { diff["name"]       = cat_b.Name              }
+  if cat_a.SortIndex != cat_b.SortIndex { diff["sort_index"] = cat_b.SortIndex         }
 
   return diff, nil
 }

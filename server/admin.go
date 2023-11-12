@@ -1,6 +1,7 @@
 package main
 
 import (
+  "strings"
   "image"
   _ "image/jpeg"
   _ "image/png"
@@ -71,20 +72,34 @@ func adminCategoryCreate(context *fiber.Ctx) error {
   return context.Status(201).JSON(result)
 }
 
+type CategoryUpdateRequest struct {
+  Name       string `json:"name"`
+  MediaType  string `json:"media_type"`
+  SortIndex  int64  `json:"sort_index"`
+}
 func adminCategoryUpdate(context *fiber.Ctx) error {
   id := context.Params("id")
   original, err := library.CategoryRead(id)
   if err == library.ErrNotFound { json404(context) }
   if err != nil { return debug500(context, err) }
 
-  changes := map[string]string {}
+  changes := CategoryUpdateRequest {}
   if err = context.BodyParser(&changes); err != nil { return json400(context, err) }
-  new_name, ok := changes["name"]       ; if !ok { new_name = original.Name              }
-  new_type, ok := changes["media_type"] ; if !ok { new_type = string(original.MediaType) }
+  changes.Name      = strings.TrimSpace(changes.Name)
+  if changes.Name       == "" { changes.Name      = original.Name              }
+  if changes.MediaType  == "" { changes.MediaType = string(original.MediaType) }
 
-  err = library.CategoryUpdate(original, new_name, new_type)
-  if err == library.ErrQueryFailed { return debug500(context, err) }
-  if err != nil { json400(context, err) }
+  if (changes.Name != original.Name) || (changes.MediaType != string(original.MediaType)) {
+    err = library.CategoryUpdate(original, changes.Name, changes.MediaType)
+    if err == library.ErrQueryFailed { return debug500(context, err) }
+    if err != nil { json400(context, err) }
+  }
+
+  if changes.SortIndex != original.SortIndex {
+    err = library.CategoryReindex(original, changes.SortIndex)
+    if err == library.ErrQueryFailed { return debug500(context, err) }
+    if err != nil { json400(context, err) }
+  }
   return json200(context, map[string]string {})
 }
 
