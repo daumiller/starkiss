@@ -226,7 +226,7 @@ function MetadataParentListing(props) {
   }, [props.records, props.selectedRecords]);
 
   return html`
-    <div class="metadata-parent-listing" style="display:flex; flex-direction:column;">
+    <div class="metadata-parent-listing" style="display:flex; flex-direction:column; overflow-y:scroll; max-height:800px;">
       <span>
         <button onClick=${selectAll}>Select All</button>
         <button onClick=${selectNone}>Select None</button>

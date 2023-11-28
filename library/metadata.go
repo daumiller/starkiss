@@ -111,7 +111,7 @@ func (md *Metadata) Reparent(new_parent_id string) error {
       parent := Metadata {}
       err := dbRecordRead(&parent, new_parent_id)
       if err != nil { return fmt.Errorf("metadata not found: %s", new_parent_id) }
-      parent_path, err = parent.DiskPath(MetadataPathTypeBase)
+      parent_path, err = parent.DiskPath(MetadataPathTypeMedia)
       if err != nil { return err }
     }
   }
@@ -164,7 +164,7 @@ func (md *Metadata) Rename(new_name_display string, new_name_sort string) error 
     if len(records) > 0 { return fmt.Errorf("metadata named \"%s\" already exists in parent \"%s\"", new_name_sort, md.ParentId) }
 
     // verify name_sort, on disk, isn't taken
-    dest_path, _ := md.DiskPath(MetadataPathTypeBase)
+    dest_path, _ := md.DiskPath(MetadataPathTypeMedia)
     dest_path = strings.TrimSuffix(dest_path, "/" + md.NameSort)
     old_name_sort := md.NameSort
     md.NameSort = new_name_sort
@@ -274,7 +274,7 @@ func MetadataCreate(md *Metadata) error {
 
   // if not file type, create directory
   if (md.MediaType != MetadataMediaTypeFileVideo) && (md.MediaType != MetadataMediaTypeFileAudio) {
-    dir_path, err := md.DiskPath(MetadataPathTypeBase)
+    dir_path, err := md.DiskPath(MetadataPathTypeMedia)
     if err != nil { return err }
     err = os.Mkdir(dir_path, 0770)
     if err != nil { return fmt.Errorf("error creating directory \"%s\" on disk: %s", dir_path, err.Error()) }
@@ -307,7 +307,7 @@ func MetadataDelete(md *Metadata, delete_children bool) error {
 
   // delete files on disk
   paths := make([]string, 3)
-  paths[0], _ = md.DiskPath(MetadataPathTypeBase)
+  paths[0], _ = md.DiskPath(MetadataPathTypeMedia)
   paths[1], _ = md.DiskPath(MetadataPathTypePosterLarge)
   paths[2], _ = md.DiskPath(MetadataPathTypePosterSmall)
   var anyerr error = nil
