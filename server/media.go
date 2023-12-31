@@ -29,6 +29,11 @@ func mediaServeMedia(context *fiber.Ctx) error {
   return context.SendFile(full_path, false)
 }
 
+func resetMetadataPosterCache(id string) {
+  poster_cache.Remove(id + "/small")
+  poster_cache.Remove(id + "/large")
+}
+
 func mediaServePoster(context *fiber.Ctx) error {
   size := context.Params("size")
   if (size != "small") && (size != "large") { return context.SendStatus(400) }

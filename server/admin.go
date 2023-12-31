@@ -182,6 +182,7 @@ func adminMetadataUpdate(context *fiber.Ctx) error {
     if err != nil { return json400(context, err) }
   }
 
+  resetMetadataPosterCache(id)
   return json200(context, map[string]string {})
 }
 
@@ -205,6 +206,7 @@ func adminMetadataPoster(context *fiber.Ctx) error {
   if err == library.ErrQueryFailed { return debug500(context, err) }
   if err != nil { return json400(context, err) }
 
+  resetMetadataPosterCache(id)
   return json200(context, map[string]string {})
 }
 
@@ -222,6 +224,7 @@ func adminMetadataDelete(context *fiber.Ctx) error {
   err = library.MetadataDelete(md, request.DeleteChildren)
   if err == library.ErrQueryFailed { return debug500(context, err) }
   if err != nil { return json400(context, err) }
+  resetMetadataPosterCache(id)
   return json200(context, map[string]string {})
 }
 
