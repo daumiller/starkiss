@@ -48,6 +48,8 @@ function requestMediaList() as void
         shortDescriptionLine1: entry.entry_type,
         shortDescriptionLine2: entry.id,
         title: entry.name,
+        length: 300,
+        playStart: 150,
       })
     else
       node.SetFields({
@@ -55,6 +57,8 @@ function requestMediaList() as void
         shortDescriptionLine2: entry.id,
         title: entry.entry_type,
         hdPosterUrl: m.global.serverAddress + "/poster/" + entry.id + "/small",
+        length: 300,
+        playStart: 150,
       })
     end if
     contentNode.AppendChild(node)

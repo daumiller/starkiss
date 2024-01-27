@@ -141,17 +141,20 @@ function activateIndex(index as integer, autoplay as boolean) as boolean
   node_title = ""
   node_id    = ""
   node_type  = ""
+  play_start = 0
 
   if m.displayMode = "posters" then
     selectedNode   = m.listPosters.content.GetChild(index)
     node_title     = selectedNode.GetField("shortDescriptionLine1")
     node_id        = selectedNode.GetField("shortDescriptionLine2")
     node_type      = selectedNode.GetField("title")
+    play_start     = selectedNode.GetField("playStart")
   else if m.displayMode = "titles" then
     selectedNode   = m.listTitles.content.GetChild(index)
     node_title     = selectedNode.GetField("title")
     node_id        = selectedNode.GetField("shortDescriptionLine2")
     node_type      = selectedNode.GetField("shortDescriptionLine1")
+    play_start     = selectedNode.GetField("playStart")
   else
     return false
   end if
@@ -161,10 +164,11 @@ function activateIndex(index as integer, autoplay as boolean) as boolean
     pushParent(node_id)
   else
     m.playingIndex = index
-    node_url       = m.global.serverAddress + "/media/" + node_id
-    content        = CreateObject("roSGNode", "ContentNode")
-    content.url    = node_url
-    content.title  = node_title
+    node_url          = m.global.serverAddress + "/media/" + node_id
+    content           = CreateObject("roSGNode", "ContentNode")
+    content.url       = node_url
+    content.title     = node_title
+    content.playStart = play_start
     m.top.playerContent = content ' start playing
   end if
 
