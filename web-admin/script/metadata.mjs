@@ -101,7 +101,7 @@ function MetadataPathElementSelector(props) {
   `;
 }
 
-function MetadataPathSelector(props) {
+export const MetadataPathSelector = function (props) {
   const [pathIds, setPathIds] = useState([ props.value ]);
   const [record, setRecord] = useState(null);
   const [groupCreatorVisible, setGroupCreatorVisible] = useState(false);
@@ -456,5 +456,4 @@ function MetadataEditor(props) {
   `;
 }
 
-export const MetadataPathSelector = MetadataPathSelector;
 export default MetadataEditor;
