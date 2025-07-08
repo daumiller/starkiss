@@ -44,7 +44,11 @@ function getServerAddress() as void
   configuration = createObject("roRegistrySection", "configuration")
   if configuration.Exists("serverAddress") then
     m.global.setField("serverAddress", configuration.Read("serverAddress"))
-    onServerAddress_Ready()
+    ' verify address is up and running
+    m.pingRequest = CreateObject("roSGNode", "PingRequest")
+    m.pingRequest.SetFields({ address: m.global.serverAddress })
+    m.pingRequest.ObserveField("success", "onServerAddress_StillGood")
+    m.pingRequest.control = "RUN"
     return
   end if
 
@@ -103,6 +107,14 @@ function onServerAddress_Checked() as void
   configuration.Write("serverAddress", serverAddress)
   configuration.Flush()
   onServerAddress_Ready()
+end function
+
+function onServerAddress_StillGood() as void
+  if m.pingRequest.success = false then
+    resetServerAddress(true)
+  else
+    onServerAddress_Ready()
+  end if
 end function
 
 function onServerAddress_Ready() as void
