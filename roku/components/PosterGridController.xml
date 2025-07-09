@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component name="PosterGridController" extends="Group">
+  <script type="text/brightscript" uri="pkg:/components/PosterGridController.brs" />
+  <interface>
+    <field id="keyPress" type="string" alwaysNotify="true" />
+  </interface>
+</component>

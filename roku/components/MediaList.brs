@@ -1,5 +1,6 @@
 function init()
   ' Children
+  m.listPostersController = m.top.findNode("listPostersController")
   m.listPosters = m.top.findNode("listPosters")
   m.listTitles  = m.top.findNode("listTitles")
   m.textStatus  = m.top.findNode("textStatus")
@@ -12,6 +13,8 @@ function init()
   m.currentParent = ""
   m.playingIndex  = 0
   m.isFocused     = false
+
+  m.listPostersController.observeField("keyPress", "OnPosterController_KeyPress")
 end function
 
 ' Set status message.
@@ -82,7 +85,7 @@ end function
 function SetFocused(focused as boolean) as void
   m.isFocused = focused
   if focused = false then return
-  if m.displayMode = "posters" then m.listPosters.SetFocus(true)
+  if m.displayMode = "posters" then m.listPostersController.SetFocus(true)
   if m.displayMode = "titles"  then m.listTitles.SetFocus(true)
   if m.displayMode = "status"  then m.textStatus.SetFocus(true)
 end function
@@ -171,6 +174,87 @@ function activateIndex(index as integer, autoplay as boolean) as boolean
   return true
 end function
 
+function OnPosterController_KeyPress() as void
+  key = m.listPostersController.GetField("keyPress")
+  childCount = m.listPosters.content.GetChildCount()
+  focusedIndex = m.listPosters.itemFocused
+  columnCount = 6
+  columnIndex = focusedIndex mod columnCount
+  rowIndex = (focusedIndex - columnIndex) / columnCount
+  rowCount = (childCount - (childCount mod columnCount)) / columnCount
+  if (childCount mod columnCount) > 0 then rowCount = rowCount + 1
+  largeStep = childCount / 20
+
+  if key = "left" then
+    if columnIndex = 0 then
+      m.top.appFocusMover = "listCategories"
+      return
+    end if
+    m.listPosters.jumpToItem = focusedIndex - 1
+    m.listPostersController.SetFocus(true)
+    return
+  end if
+
+  if key = "right" then
+    if columnIndex < (columnCount - 1) then
+      m.listPosters.jumpToItem = focusedIndex + 1
+    end if
+    m.listPostersController.SetFocus(true)
+    return
+  end if
+
+  if key = "up" then
+    if rowIndex > 0 then
+      m.listPosters.jumpToItem = focusedIndex - columnCount
+    end if
+    m.listPostersController.SetFocus(true)
+    return
+  end if
+
+  if key = "down" then
+    if rowIndex < (rowCount - 1) then
+      desiredIndex = focusedIndex + columnCount
+      if desiredIndex >= childCount then desiredIndex = childCount - 1
+      m.listPosters.jumpToItem = desiredIndex
+    end if
+    m.listPostersController.SetFocus(true)
+    return
+  end if
+
+  if key = "fastforward" then
+    desiredIndex = focusedIndex + largeStep
+    if desiredIndex >= childCount then desiredIndex = childCount - 1
+    m.listPosters.jumpToItem = desiredIndex
+    m.listPostersController.SetFocus(true)
+    return
+  end if
+
+  if key = "rewind" then
+    desiredIndex = focusedIndex - largeStep
+    if desiredIndex < 0 then desiredIndex = 0
+    m.listPosters.jumpToItem = desiredIndex
+    m.listPostersController.SetFocus(true)
+    return
+  end if
+
+  if (key = "back") then
+    if m.listDepth > 1 then
+      popParent()
+    else
+      m.top.appFocusMover = "listCategories"
+    end if
+    return
+  end if
+
+  if (key = "OK") or (key = "play") then
+    if m.displayMode = "posters" then activateIndex(m.listPosters.itemFocused, false)
+    if m.displayMode = "titles"  then activateIndex(m.listTitles.itemFocused, false)
+    return
+  end if
+
+  print "MediaList unhandled key event: " + key
+end function
+
 ' Handle remote presses.
 function OnKeyEvent(key as string, press as boolean) as boolean
   if press = false then return false
@@ -187,17 +271,6 @@ function OnKeyEvent(key as string, press as boolean) as boolean
       m.top.appFocusMover = "listCategories"
     end if
     return true
-  end if
-
-  if (key = "down") then
-    ' PosterGrid won't let you scroll down if the next column down is empty, even if next row isn't (completely) empty.
-    ' Attempt to fix that:
-    if m.displayMode = "posters" then
-      if m.listPosters.itemFocused = (m.listPosters.content.GetChildCount() - 1) then return true
-      m.listPosters.jumpToItem = (m.listPosters.content.GetChildCount() - 1)
-      return true
-    end if
-    return false
   end if
 
   if (key = "OK") or (key = "play") then
