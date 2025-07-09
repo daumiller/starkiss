@@ -1,30 +1,32 @@
+// filepath: /Users/darcy/dev/starkiss/server/client.go
 package main
 
 import (
   "cmp"
   "slices"
-  "github.com/gofiber/fiber/v2"
+
+  "github.com/labstack/echo/v4"
   "github.com/daumiller/starkiss/library"
 )
 
-func startupClientRoutes(server *fiber.App) {
-  server.Get("/client/ping",        clientServePing)
-  server.Get("/client/categories",  clientServeCategories)
-  server.Get("/client/listing/:id", clientServeListing)
+func startupClientRoutes(server *echo.Echo) {
+  server.GET("/client/ping",        clientServePing)
+  server.GET("/client/categories",  clientServeCategories)
+  server.GET("/client/listing/:id", clientServeListing)
 }
 
-func clientServePing(context *fiber.Ctx) error {
-  return context.JSON(map[string]string{"message": "pong"})
+func clientServePing(context echo.Context) error {
+  return context.JSON(200, map[string]string{"message": "pong"})
 }
 
-func clientServeCategories(context *fiber.Ctx) error {
+func clientServeCategories(context echo.Context) error {
   categories, err := library.CategoryList()
   if err != nil { return debug500(context, err) }
-  return context.JSON(categories)
+  return context.JSON(200, categories)
 }
 
-func clientServeListing(context *fiber.Ctx) error {
-  id := context.Params("id")
+func clientServeListing(context echo.Context) error {
+  id := context.Param("id")
   cat, err := library.CategoryRead(id)
   if (err != nil) && (err != library.ErrNotFound) { return debug500(context, err) }
   if err == nil { return clientServeListing_Category(context, cat) }
@@ -33,7 +35,7 @@ func clientServeListing(context *fiber.Ctx) error {
   if (err != nil) && (err != library.ErrNotFound) { return debug500(context, err) }
   if err == nil { return clientServeListing_Metadata(context, md) }
 
-  return context.SendStatus(404)
+  return context.NoContent(404)
 }
 
 type ClientPosterRatio string
@@ -67,7 +69,7 @@ type ClientListing struct {
   Entries      []ClientListingEntry `json:"entries"`
 }
 
-func clientServeListing_Category(context *fiber.Ctx, cat *library.Category) error {
+func clientServeListing_Category(context echo.Context, cat *library.Category) error {
   metadata, err := library.MetadataForParent(cat.Id)
   if err != nil { return debug500(context, err) }
 
@@ -101,10 +103,10 @@ func clientServeListing_Category(context *fiber.Ctx, cat *library.Category) erro
     listing.Entries[index].EntryType = string(md.MediaType)
   }
 
-  return context.JSON(listing)
+  return context.JSON(200, listing)
 }
 
-func clientServeListing_Metadata(context *fiber.Ctx, md *library.Metadata) error {
+func clientServeListing_Metadata(context echo.Context, md *library.Metadata) error {
   children, err := library.MetadataForParent(md.Id)
   if err != nil { return debug500(context, err) }
 
@@ -159,5 +161,5 @@ func clientServeListing_Metadata(context *fiber.Ctx, md *library.Metadata) error
     listing.Entries[index].EntryType = string(md.MediaType)
   }
 
-  return context.JSON(listing)
+  return context.JSON(200, listing)
 }

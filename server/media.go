@@ -2,31 +2,31 @@ package main
 
 import (
   "os"
-  "github.com/gofiber/fiber/v2"
+  "github.com/labstack/echo/v4"
   "github.com/hashicorp/golang-lru/v2"
   "github.com/daumiller/starkiss/library"
 )
 
 var poster_cache *lru.Cache[string, string]
 
-func startupMediaRoutes(server *fiber.App) {
+func startupMediaRoutes(server *echo.Echo) {
   poster_cache, _ = lru.New[string, string](1024)
-  server.Get("/media/:id",          mediaServeMedia)
-  server.Get("/poster/:id/:size",   mediaServePoster)
-  server.Get("/poster/reset-cache", mediaServePosterResetCache)
+  server.GET("/media/:id", mediaServeMedia)
+  server.GET("/poster/:id/:size", mediaServePoster)
+  server.GET("/poster/reset-cache", mediaServePosterResetCache)
 }
 
-func mediaServeMedia(context *fiber.Ctx) error {
-  id := context.Params("id")
+func mediaServeMedia(context echo.Context) error {
+  id := context.Param("id")
   md, err := library.MetadataRead(id)
-  if err == library.ErrNotFound { return context.SendStatus(404) }
+  if err == library.ErrNotFound { return context.NoContent(404) }
   if err != nil { return debug500(context, err) }
 
   full_path, err := md.DiskPath(library.MetadataPathTypeMedia)
   if err != nil { return debug500(context, err) }
-  if _, err := os.Stat(full_path); os.IsNotExist(err) { return context.SendStatus(404) }
+  if _, err := os.Stat(full_path); os.IsNotExist(err) { return context.NoContent(404) }
 
-  return context.SendFile(full_path, false)
+  return context.File(full_path)
 }
 
 func resetMetadataPosterCache(id string) {
@@ -34,41 +34,41 @@ func resetMetadataPosterCache(id string) {
   poster_cache.Remove(id + "/large")
 }
 
-func mediaServePoster(context *fiber.Ctx) error {
-  size := context.Params("size")
-  if (size != "small") && (size != "large") { return context.SendStatus(400) }
+func mediaServePoster(context echo.Context) error {
+  size := context.Param("size")
+  if (size != "small") && (size != "large") { return context.NoContent(400) }
 
-  cache_path := context.Params("id") + "/" + size
+  cache_path := context.Param("id") + "/" + size
   disk_path, ok := poster_cache.Get(cache_path)
-  if ok { return context.SendFile(disk_path, false) }
+  if ok { return context.File(disk_path) }
 
-  id := context.Params("id")
+  id := context.Param("id")
   md, err := library.MetadataRead(id)
-  if err == library.ErrNotFound { return context.SendStatus(404) }
+  if err == library.ErrNotFound { return context.NoContent(404) }
   if err != nil { return debug500(context, err) }
 
   var full_path string = ""
   if size == "small" { full_path, err = md.DiskPath(library.MetadataPathTypePosterSmall) }
   if size == "large" { full_path, err = md.DiskPath(library.MetadataPathTypePosterLarge) }
   if err != nil { return debug500(context, err) }
-  
+
   if _, err := os.Stat(full_path); os.IsNotExist(err) {
     poster_aspect := "1x1"
-    switch(md.MediaType) {
+    switch md.MediaType {
       case library.MetadataMediaTypeFileVideo : fallthrough
       case library.MetadataMediaTypeSeason    : fallthrough
       case library.MetadataMediaTypeSeries    : poster_aspect = "2x3"
     }
     missing_location := "./static/missing." + size + "." + poster_aspect + ".png"
     poster_cache.Add(cache_path, missing_location)
-    return context.SendFile(missing_location, false)
+    return context.File(missing_location)
   }
 
   poster_cache.Add(cache_path, full_path)
-  return context.SendFile(full_path, false)
+  return context.File(full_path)
 }
 
-func mediaServePosterResetCache(context *fiber.Ctx) error {
+func mediaServePosterResetCache(context echo.Context) error {
   poster_cache.Purge()
-  return json200(context, map[string]string {})
+  return json200(context, map[string]string{})
 }

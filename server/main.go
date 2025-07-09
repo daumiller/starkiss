@@ -3,7 +3,7 @@ package main
 import (
   "os"
   "fmt"
-  "github.com/gofiber/fiber/v2"
+  "github.com/labstack/echo/v4"
   "github.com/daumiller/starkiss/library"
 )
 
@@ -14,18 +14,18 @@ var DEBUG      bool    = false   // debug mode; can be overridden by environment
 var JWT_KEY    []byte  = nil     // JWT key; created or read from DB in propertiesMain()
 
 // simple debug handler for 500s
-func debug500(context *fiber.Ctx, err error) error {
-  if DEBUG == false { return context.Status(500).JSON(map[string]string{"error": "internal server error"}) }
-  return context.Status(500).JSON(map[string]string{"error": err.Error()})
+func debug500(context echo.Context, err error) error {
+  if DEBUG == false { return context.JSON(500, map[string]string{"error": "internal server error"}) }
+  return context.JSON(500, map[string]string{"error": err.Error()})
 }
-func json200(context *fiber.Ctx, data interface{}) error {
-  return context.Status(200).JSON(data)
+func json200(context echo.Context, data interface{}) error {
+  return context.JSON(200, data)
 }
-func json400(context *fiber.Ctx, err error) error {
-  return context.Status(400).JSON(map[string]string{"error": err.Error()})
+func json400(context echo.Context, err error) error {
+  return context.JSON(400, map[string]string{"error": err.Error()})
 }
-func json404(context *fiber.Ctx) error {
-  return context.Status(404).JSON(map[string]string{"error": "record not found"})
+func json404(context echo.Context) error {
+  return context.JSON(404, map[string]string{"error": "record not found"})
 }
 
 func main() {
@@ -53,18 +53,13 @@ func main() {
   if err != nil { fmt.Printf("Error starting library; not ready: %s\n", err.Error()) ; os.Exit(-1) }
 
   // startup server, and register routes
-  server := fiber.New()
+  server := echo.New()
   server.Static("/web-admin", "./../web-admin")
   startupMediaRoutes(server)
   startupClientRoutes(server)
   startupAdminRoutes(server)
 
-  // 404 handler
-  server.Use(func(context *fiber.Ctx) error {
-    return context.SendStatus(404)
-  })
-
-  server.Listen(ADDRESS)
+  server.Logger.Fatal(server.Start(ADDRESS))
 }
 
 // Look for environment variables. If present, override defaults.
