@@ -13,6 +13,7 @@ function init()
   m.currentParent = ""
   m.playingIndex  = 0
   m.isFocused     = false
+  m.newRoot       = true
 
   m.listPostersController.observeField("keyPress", "OnPosterController_KeyPress")
 end function
@@ -51,6 +52,7 @@ function SetParentId(parentId as string, newRoot as boolean) as void
     m.listDepth   = 1
     m.listParents = [parentId]
     m.listIndices = [0]
+    m.newRoot     = true
   end if
   m.currentParent = parentId
   m.getRequest = CreateObject("roSGNode", "MediaListRequest")
@@ -178,12 +180,18 @@ function OnPosterController_KeyPress() as void
   key = m.listPostersController.GetField("keyPress")
   childCount = m.listPosters.content.GetChildCount()
   focusedIndex = m.listPosters.itemFocused
+  if focusedIndex < 0 then focusedIndex = 0
+  if m.newRoot = true then
+    m.newRoot = false
+    focusedIndex = 0
+  end if
   columnCount = 6
   columnIndex = focusedIndex mod columnCount
   rowIndex = (focusedIndex - columnIndex) / columnCount
   rowCount = (childCount - (childCount mod columnCount)) / columnCount
   if (childCount mod columnCount) > 0 then rowCount = rowCount + 1
   largeStep = childCount / 20
+  if largeStep < columnCount then largeStep = columnCount
 
   if key = "left" then
     if columnIndex = 0 then
