@@ -55,6 +55,7 @@ func main() {
   // startup server, and register routes
   server := echo.New()
   server.Static("/web-admin", "./../web-admin")
+  server.Static("/web-client", "./../web-client")
   startupMediaRoutes(server)
   startupClientRoutes(server)
   startupAdminRoutes(server)
