@@ -7,7 +7,6 @@
 - not yet documented
 - not well commented
 - kinda clunky
-- no web or mobile clients (yet)
 
 ---
 
