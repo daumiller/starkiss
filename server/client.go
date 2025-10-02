@@ -16,16 +16,19 @@ func startupClientRoutes(server *echo.Echo) {
 }
 
 func clientServePing(context echo.Context) error {
+  //context.Response().Header().Set(echo.HeaderAccessControlAllowOrigin, "*")
   return context.JSON(200, map[string]string{"message": "pong"})
 }
 
 func clientServeCategories(context echo.Context) error {
+  //context.Response().Header().Set(echo.HeaderAccessControlAllowOrigin, "*")
   categories, err := library.CategoryList()
   if err != nil { return debug500(context, err) }
   return context.JSON(200, categories)
 }
 
 func clientServeListing(context echo.Context) error {
+  //context.Response().Header().Set(echo.HeaderAccessControlAllowOrigin, "*")
   id := context.Param("id")
   cat, err := library.CategoryRead(id)
   if (err != nil) && (err != library.ErrNotFound) { return debug500(context, err) }
@@ -60,13 +63,14 @@ type ClientListingEntry struct {
   EntryType string `json:"entry_type"`
 }
 type ClientListing struct {
-  Id           string               `json:"id"`
-  Name         string               `json:"name"`
-  ParentId     string               `json:"parent_id"`
-  PosterRatio  ClientPosterRatio    `json:"poster_ratio"`
-  ListingType  ClientListingType    `json:"listing_type"`
-  EntryCount   int                  `json:"entry_count"`
-  Entries      []ClientListingEntry `json:"entries"`
+  Id           string                       `json:"id"`
+  Name         string                       `json:"name"`
+  ParentId     string                       `json:"parent_id"`
+  Path         []library.PathComponent      `json:"path"`
+  PosterRatio  ClientPosterRatio            `json:"poster_ratio"`
+  ListingType  ClientListingType            `json:"listing_type"`
+  EntryCount   int                          `json:"entry_count"`
+  Entries      []ClientListingEntry         `json:"entries"`
 }
 
 func clientServeListing_Category(context echo.Context, cat *library.Category) error {
@@ -77,6 +81,9 @@ func clientServeListing_Category(context echo.Context, cat *library.Category) er
   listing.Id           = cat.Id
   listing.Name         = cat.Name
   listing.ParentId     = ""
+  listing.Path         = make([]library.PathComponent, 1)
+  listing.Path[0].Id   = cat.Id
+  listing.Path[0].Name = cat.Name
   listing.PosterRatio  = ClientPosterRatio1x1
   listing.EntryCount   = len(metadata)
   listing.Entries      = make([]ClientListingEntry, listing.EntryCount)
@@ -110,10 +117,14 @@ func clientServeListing_Metadata(context echo.Context, md *library.Metadata) err
   children, err := library.MetadataForParent(md.Id)
   if err != nil { return debug500(context, err) }
 
+  path, err := library.PathForId(md.Id)
+  if err != nil { return debug500(context, err) }
+
   var listing ClientListing
   listing.Id           = md.Id
   listing.Name         = md.NameDisplay
   listing.ParentId     = md.ParentId
+  listing.Path         = path
   listing.PosterRatio  = ClientPosterRatio1x1
   listing.EntryCount   = len(children)
   listing.Entries      = make([]ClientListingEntry, listing.EntryCount)

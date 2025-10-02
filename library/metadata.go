@@ -39,6 +39,11 @@ type Metadata struct {
   Size        int64             `json:"size"`
 }
 
+type PathComponent struct {
+  Id   string `json:"id"`
+  Name string `json:"name"`
+}
+
 // ============================================================================
 // Public Interface
 
@@ -67,8 +72,7 @@ func (md *Metadata) DiskPath(path_type MetadataPathType) (string, error) {
   parent_id := md.ParentId
   for parent_id != "" {
     if CategoryIdExists(parent_id) {
-      cat := Category {}
-      err := dbRecordRead(&cat, parent_id)
+      cat, err := CategoryRead(parent_id)
       if err != nil { return "", fmt.Errorf("category not found: %s", parent_id) }
       md_path = filepath.Join(cat.Name, md_path)
       break
@@ -103,8 +107,7 @@ func (md *Metadata) Reparent(new_parent_id string) error {
   parent_path := mediaPath
   if new_parent_id != "" {
     if CategoryIdExists(new_parent_id) {
-      cat := Category {}
-      err := dbRecordRead(&cat, new_parent_id)
+      cat, err := CategoryRead(new_parent_id)
       if err != nil { return fmt.Errorf("category not found: %s", new_parent_id) }
       parent_path = cat.DiskPath()
     } else {
@@ -252,6 +255,35 @@ func MetadataRead(id string) (*Metadata, error) {
   err := dbRecordRead(&md, id)
   if err != nil { return nil, err }
   return &md, nil
+}
+
+func PathForId(id string) ([]PathComponent, error) {
+  components := []PathComponent{}
+
+  for {
+    if CategoryIdExists(id) {
+      cat, err := CategoryRead(id)
+      if err != nil { return nil, fmt.Errorf("error reading category %s", id) }
+
+      cmp := PathComponent{}
+      cmp.Id     = cat.Id
+      cmp.Name   = cat.Name
+      components = append(components, cmp)
+
+      return components, nil
+    }
+
+    md := Metadata {}
+    err := dbRecordRead(&md, id)
+    if err != nil { return nil, fmt.Errorf("metadata record not found: %s", id) }
+
+    cmp := PathComponent{}
+    cmp.Id     = md.Id
+    cmp.Name   = md.NameDisplay
+    components = append(components, cmp)
+
+    id = md.ParentId
+  }
 }
 
 func MetadataForParent(parent_id string) ([]Metadata, error) {
